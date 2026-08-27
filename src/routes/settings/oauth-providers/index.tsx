@@ -1,31 +1,32 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useEffect, useState, useCallback } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
-import { useRequireAuth } from '@/hooks/useRequireAuth'
-import { useToast } from '@/hooks/useToast'
-import { useFetchWithError } from '@/hooks/useFetchWithError'
-import { timelineApi } from '@/lib/api-client'
 import {
-  Plus,
-  Trash2,
-  SquarePen,
-  CheckCircle,
-  XCircle,
-  Loader2,
-  Key,
   Activity,
-  Mail,
+  CheckCircle,
   Cloud,
+  Copy,
   ExternalLink,
   Eye,
   EyeOff,
-  Copy,
+  Key,
+  Loader2,
+  Mail,
+  Plus,
+  SquarePen,
+  Trash2,
+  XCircle,
 } from 'lucide-react'
-import { ConfirmModal } from '@/components/ui/ConfirmModal'
-import { Modal } from '@/components/ui/Modal'
-import { FormError } from '@/components/ui/FormField'
+import { useCallback, useEffect, useId, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { DataTable } from '@/components/ui/DataTable'
+import { FormError } from '@/components/ui/FormField'
+import { Modal } from '@/components/ui/Modal'
+import { useFetchWithError } from '@/hooks/useFetchWithError'
+import { useRequireAuth } from '@/hooks/useRequireAuth'
+import { useToast } from '@/hooks/useToast'
+import { timelineApi } from '@/lib/api-client'
+import { getApiErrorMessage } from '@/lib/api-utils'
 import type { components } from '@/lib/timeline-api'
 
 export const Route = createFileRoute('/settings/oauth-providers/')({
@@ -36,7 +37,10 @@ type OAuthProviderConfig = components['schemas']['OAuthConfigResponse']
 type OAuthProviderCreate = components['schemas']['OAuthConfigCreateRequest']
 type OAuthProviderUpdate = components['schemas']['OAuthConfigUpdate']
 
-const PROVIDER_INFO: Record<string, { name: string; icon: typeof Mail; color: string; defaultScopes: string[] }> = {
+const PROVIDER_INFO: Record<
+  string,
+  { name: string; icon: typeof Mail; color: string; defaultScopes: string[] }
+> = {
   gmail: {
     name: 'Gmail',
     icon: Mail,
@@ -52,6 +56,7 @@ const PROVIDER_INFO: Record<string, { name: string; icon: typeof Mail; color: st
 }
 
 function OAuthProvidersPage() {
+  const includeInactiveId = useId()
   const authState = useRequireAuth()
   const toast = useToast()
   const [providers, setProviders] = useState<OAuthProviderConfig[]>([])
@@ -76,7 +81,7 @@ function OAuthProvidersPage() {
 
   useEffect(() => {
     if (authState.user) refetch()
-  }, [authState.user, includeInactive, refetch])
+  }, [authState.user, refetch])
 
   useEffect(() => {
     if (fetchedProviders) setProviders(fetchedProviders)
@@ -85,7 +90,9 @@ function OAuthProvidersPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [editingProvider, setEditingProvider] = useState<OAuthProviderConfig | null>(null)
   const [deletingProviderId, setDeletingProviderId] = useState<string | null>(null)
-  const [confirmingDelete, setConfirmingDelete] = useState<{ id: string; name: string } | null>(null)
+  const [confirmingDelete, setConfirmingDelete] = useState<{ id: string; name: string } | null>(
+    null,
+  )
   const [checkingHealth, setCheckingHealth] = useState<string | null>(null)
 
   const handleDeleteClick = (provider: OAuthProviderConfig) => {
@@ -105,7 +112,7 @@ function OAuthProvidersPage() {
       const { error: apiError } = await timelineApi.oauthProviders.delete(confirmingDelete.id)
 
       if (apiError) {
-        const errorMsg = (apiError as any)?.message || 'Failed to delete OAuth provider'
+        const errorMsg = getApiErrorMessage(apiError, 'Failed to delete OAuth provider')
         setError(errorMsg)
         toast.error('Failed to delete', errorMsg)
         throw new Error(errorMsg)
@@ -113,8 +120,6 @@ function OAuthProvidersPage() {
 
       setProviders((prev) => prev.filter((p) => p.id !== confirmingDelete.id))
       toast.success('Provider deleted', `"${confirmingDelete.name}" has been deleted`)
-    } catch (err) {
-      throw err
     } finally {
       setDeletingProviderId(null)
     }
@@ -126,7 +131,10 @@ function OAuthProvidersPage() {
       const { data, error: apiError } = await timelineApi.oauthProviders.getHealth(provider.id)
 
       if (apiError) {
-        toast.error('Health check failed', (apiError as any)?.message || 'Could not check provider health')
+        toast.error(
+          'Health check failed',
+          getApiErrorMessage(apiError, 'Could not check provider health'),
+        )
       } else if (data) {
         if (data.health_status === 'healthy') {
           toast.success('Provider healthy', `${provider.display_name} is operational`)
@@ -149,7 +157,11 @@ function OAuthProvidersPage() {
       header: 'Provider',
       cell: ({ row }) => {
         const provider = row.original
-        const info = PROVIDER_INFO[provider.provider_type] || { name: provider.provider_type, icon: Key, color: 'text-gray-600' }
+        const info = PROVIDER_INFO[provider.provider_type] || {
+          name: provider.provider_type,
+          icon: Key,
+          color: 'text-gray-600',
+        }
         const Icon = info.icon
         return (
           <div className="flex items-center gap-2">
@@ -185,9 +197,7 @@ function OAuthProvidersPage() {
           )
         }
         if (status) {
-          return (
-            <span className="text-xs text-amber-600 dark:text-amber-400">{status}</span>
-          )
+          return <span className="text-xs text-amber-600 dark:text-amber-400">{status}</span>
         }
         return <span className="text-xs text-muted-foreground">—</span>
       },
@@ -279,7 +289,7 @@ function OAuthProvidersPage() {
           onClose={() => setEditingProvider(null)}
           onSuccess={(updatedProvider) => {
             setProviders((prev) =>
-              prev.map((p) => (p.id === updatedProvider.id ? updatedProvider : p))
+              prev.map((p) => (p.id === updatedProvider.id ? updatedProvider : p)),
             )
             setEditingProvider(null)
             setError(null)
@@ -300,7 +310,8 @@ function OAuthProvidersPage() {
               Limited Access
             </h3>
             <p className="text-sm text-amber-800 dark:text-amber-200 mt-0.5">
-              You don't have permission to manage OAuth providers. You can view but cannot create or modify.
+              You don't have permission to manage OAuth providers. You can view but cannot create or
+              modify.
             </p>
           </div>
         </div>
@@ -324,9 +335,12 @@ function OAuthProvidersPage() {
 
       {/* Info Box */}
       <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-none">
-        <h3 className="font-semibold text-blue-900 dark:text-blue-100 text-sm mb-1">Setup Instructions</h3>
+        <h3 className="font-semibold text-blue-900 dark:text-blue-100 text-sm mb-1">
+          Setup Instructions
+        </h3>
         <p className="text-sm text-blue-800 dark:text-blue-200">
-          To enable OAuth for email providers, you need to create OAuth credentials in the provider's developer console:
+          To enable OAuth for email providers, you need to create OAuth credentials in the
+          provider's developer console:
         </p>
         <ul className="text-sm text-blue-800 dark:text-blue-200 mt-2 space-y-1 list-disc list-inside">
           <li>
@@ -358,12 +372,12 @@ function OAuthProvidersPage() {
       <div className="mb-3 p-2.5 bg-card/80 backdrop-blur-sm rounded-none border border-border/50 flex items-center gap-2">
         <input
           type="checkbox"
-          id="includeInactive"
+          id={includeInactiveId}
           checked={includeInactive}
           onChange={(e) => setIncludeInactive(e.target.checked)}
           className="w-4 h-4 rounded-none border-input"
         />
-        <label htmlFor="includeInactive" className="text-sm text-foreground cursor-pointer">
+        <label htmlFor={includeInactiveId} className="text-sm text-foreground cursor-pointer">
           Show inactive providers
         </label>
       </div>
@@ -418,14 +432,20 @@ function OAuthProviderFormModal({
   onSuccess: (provider: OAuthProviderConfig) => void
   onError: (error: string) => void
 }) {
+  const clientIdId = useId()
+  const clientSecretId = useId()
+  const displayNameId = useId()
+  const providerTypeId = useId()
+  const redirectUriId = useId()
+  const scopesOnePerId = useId()
   const [providerType, setProviderType] = useState(provider?.provider_type || 'gmail')
   const [clientId, setClientId] = useState('')
   const [clientSecret, setClientSecret] = useState('')
   const [redirectUri, setRedirectUri] = useState(
-    `${window.location.origin.replace(':3000', ':8000')}/api/oauth-providers/${providerType}/callback`
+    `${window.location.origin.replace(':3000', ':8000')}/api/oauth-providers/${providerType}/callback`,
   )
   const [scopes, setScopes] = useState<string>(
-    provider ? '' : (PROVIDER_INFO[providerType]?.defaultScopes || []).join('\n')
+    provider ? '' : (PROVIDER_INFO[providerType]?.defaultScopes || []).join('\n'),
   )
   const [displayName, setDisplayName] = useState(provider?.display_name || '')
   const [loading, setLoading] = useState(false)
@@ -435,7 +455,9 @@ function OAuthProviderFormModal({
   // Update redirect URI when provider type changes (only for new providers)
   useEffect(() => {
     if (!provider) {
-      setRedirectUri(`${window.location.origin.replace(':3000', ':8000')}/api/oauth-providers/${providerType}/callback`)
+      setRedirectUri(
+        `${window.location.origin.replace(':3000', ':8000')}/api/oauth-providers/${providerType}/callback`,
+      )
       setScopes((PROVIDER_INFO[providerType]?.defaultScopes || []).join('\n'))
     }
   }, [providerType, provider])
@@ -477,13 +499,19 @@ function OAuthProviderFormModal({
           updateData.redirect_uri = redirectUri.trim()
         }
         if (scopes.trim()) {
-          updateData.tenant_configured_scopes = scopes.split('\n').map(s => s.trim()).filter(Boolean)
+          updateData.tenant_configured_scopes = scopes
+            .split('\n')
+            .map((s) => s.trim())
+            .filter(Boolean)
         }
 
-        const { data, error: apiError } = await timelineApi.oauthProviders.update(provider.id, updateData)
+        const { data, error: apiError } = await timelineApi.oauthProviders.update(
+          provider.id,
+          updateData,
+        )
 
         if (apiError) {
-          const errorMsg = (apiError as any)?.message || 'Failed to update OAuth provider'
+          const errorMsg = getApiErrorMessage(apiError, 'Failed to update OAuth provider')
           setError(errorMsg)
           onError(errorMsg)
         } else if (data) {
@@ -496,13 +524,18 @@ function OAuthProviderFormModal({
           client_id: clientId.trim(),
           client_secret: clientSecret.trim(),
           redirect_uri: redirectUri.trim(),
-          scopes: scopes.trim() ? scopes.split('\n').map(s => s.trim()).filter(Boolean) : undefined,
+          scopes: scopes.trim()
+            ? scopes
+                .split('\n')
+                .map((s) => s.trim())
+                .filter(Boolean)
+            : undefined,
         }
 
         const { data, error: apiError } = await timelineApi.oauthProviders.create(createData)
 
         if (apiError) {
-          const errorMsg = (apiError as any)?.message || 'Failed to create OAuth provider'
+          const errorMsg = getApiErrorMessage(apiError, 'Failed to create OAuth provider')
           setError(errorMsg)
           onError(errorMsg)
         } else if (data) {
@@ -514,7 +547,11 @@ function OAuthProviderFormModal({
     }
   }
 
-  const info = PROVIDER_INFO[providerType] || { name: providerType, icon: Key, color: 'text-gray-600' }
+  const info = PROVIDER_INFO[providerType] || {
+    name: providerType,
+    icon: Key,
+    color: 'text-gray-600',
+  }
   const Icon = info.icon
 
   return (
@@ -532,10 +569,13 @@ function OAuthProviderFormModal({
         {/* Provider Type */}
         {!provider && (
           <div>
-            <label className="block text-sm font-medium text-foreground/90 mb-2">
+            <label
+              htmlFor={providerTypeId}
+              className="block text-sm font-medium text-foreground/90 mb-2"
+            >
               Provider Type <span className="text-destructive">*</span>
             </label>
-            <div className="grid grid-cols-2 gap-2">
+            <div id={providerTypeId} className="grid grid-cols-2 gap-2">
               {Object.entries(PROVIDER_INFO).map(([type, typeInfo]) => {
                 const TypeIcon = typeInfo.icon
                 return (
@@ -577,10 +617,11 @@ function OAuthProviderFormModal({
 
         {/* Client ID */}
         <div>
-          <label className="block text-sm font-medium text-foreground/90 mb-2">
+          <label htmlFor={clientIdId} className="block text-sm font-medium text-foreground/90 mb-2">
             Client ID {!provider && <span className="text-destructive">*</span>}
           </label>
           <input
+            id={clientIdId}
             type="text"
             value={clientId}
             onChange={(e) => setClientId(e.target.value)}
@@ -592,10 +633,13 @@ function OAuthProviderFormModal({
 
         {/* Client Secret */}
         <div>
-          <label className="block text-sm font-medium text-foreground/90 mb-2">
+          <label
+            htmlFor={clientSecretId}
+            className="block text-sm font-medium text-foreground/90 mb-2"
+          >
             Client Secret {!provider && <span className="text-destructive">*</span>}
           </label>
-          <div className="relative">
+          <div id={clientSecretId} className="relative">
             <input
               type={showSecret ? 'text' : 'password'}
               value={clientSecret}
@@ -616,10 +660,13 @@ function OAuthProviderFormModal({
 
         {/* Redirect URI */}
         <div>
-          <label className="block text-sm font-medium text-foreground/90 mb-2">
+          <label
+            htmlFor={redirectUriId}
+            className="block text-sm font-medium text-foreground/90 mb-2"
+          >
             Redirect URI {!provider && <span className="text-destructive">*</span>}
           </label>
-          <div className="relative">
+          <div id={redirectUriId} className="relative">
             <input
               type="text"
               value={redirectUri}
@@ -644,10 +691,14 @@ function OAuthProviderFormModal({
 
         {/* Scopes */}
         <div>
-          <label className="block text-sm font-medium text-foreground/90 mb-2">
+          <label
+            htmlFor={scopesOnePerId}
+            className="block text-sm font-medium text-foreground/90 mb-2"
+          >
             Scopes <span className="text-muted-foreground">(one per line)</span>
           </label>
           <textarea
+            id={scopesOnePerId}
             value={scopes}
             onChange={(e) => setScopes(e.target.value)}
             placeholder="Leave empty for default scopes"
@@ -660,10 +711,14 @@ function OAuthProviderFormModal({
         {/* Display Name (only for editing) */}
         {provider && (
           <div>
-            <label className="block text-sm font-medium text-foreground/90 mb-2">
+            <label
+              htmlFor={displayNameId}
+              className="block text-sm font-medium text-foreground/90 mb-2"
+            >
               Display Name
             </label>
             <input
+              id={displayNameId}
               type="text"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
@@ -685,11 +740,7 @@ function OAuthProviderFormModal({
           >
             Cancel
           </Button>
-          <Button
-            type="submit"
-            disabled={loading}
-            className="w-full sm:w-auto"
-          >
+          <Button type="submit" disabled={loading} className="w-full sm:w-auto">
             {loading && <Loader2 className="w-4 h-4 animate-spin" />}
             {provider ? 'Update Provider' : 'Create Provider'}
           </Button>

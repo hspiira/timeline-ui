@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useCallback, useState } from 'react'
 
 export interface ValidationRules {
   [fieldName: string]: {
@@ -6,7 +6,7 @@ export interface ValidationRules {
     minLength?: { value: number; message: string }
     maxLength?: { value: number; message: string }
     pattern?: { value: RegExp; message: string }
-    custom?: (value: any) => string | null
+    custom?: (value: unknown) => string | null
   }
 }
 
@@ -18,7 +18,7 @@ export function useFormValidation(rules: ValidationRules) {
   const [errors, setErrors] = useState<FormErrors>({})
 
   const validateField = useCallback(
-    (fieldName: string, value: any): string | null => {
+    (fieldName: string, value: unknown): string | null => {
       const fieldRules = rules[fieldName]
       if (!fieldRules) return null
 
@@ -36,25 +36,21 @@ export function useFormValidation(rules: ValidationRules) {
         return null
       }
 
-      // Min length validation
-      if (
-        fieldRules.minLength &&
-        value.length < fieldRules.minLength.value
-      ) {
-        return fieldRules.minLength.message
-      }
+      if (typeof value === 'string') {
+        // Min length validation
+        if (fieldRules.minLength && value.length < fieldRules.minLength.value) {
+          return fieldRules.minLength.message
+        }
 
-      // Max length validation
-      if (
-        fieldRules.maxLength &&
-        value.length > fieldRules.maxLength.value
-      ) {
-        return fieldRules.maxLength.message
-      }
+        // Max length validation
+        if (fieldRules.maxLength && value.length > fieldRules.maxLength.value) {
+          return fieldRules.maxLength.message
+        }
 
-      // Pattern validation
-      if (fieldRules.pattern && !fieldRules.pattern.value.test(value)) {
-        return fieldRules.pattern.message
+        // Pattern validation
+        if (fieldRules.pattern && !fieldRules.pattern.value.test(value)) {
+          return fieldRules.pattern.message
+        }
       }
 
       // Custom validation
@@ -64,11 +60,11 @@ export function useFormValidation(rules: ValidationRules) {
 
       return null
     },
-    [rules]
+    [rules],
   )
 
   const validateForm = useCallback(
-    (values: Record<string, any>): boolean => {
+    (values: Record<string, unknown>): boolean => {
       const newErrors: FormErrors = {}
       let hasErrors = false
 
@@ -85,7 +81,7 @@ export function useFormValidation(rules: ValidationRules) {
       setErrors(newErrors)
       return !hasErrors
     },
-    [rules, validateField]
+    [rules, validateField],
   )
 
   const setFieldError = useCallback((fieldName: string, error: string | null) => {

@@ -1,35 +1,35 @@
-import { createFileRoute, useNavigate, Link } from '@tanstack/react-router'
-import { requireAuthBeforeLoad } from '@/lib/route-auth'
-import { useEffect, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import {
+  AlertCircle,
   ArrowLeft,
   Calendar,
-  Hash,
-  Link2,
-  FileText,
   CheckCircle,
-  Clock,
-  Copy,
   ChevronLeft,
   ChevronRight,
-  AlertCircle,
-  Network,
+  Clock,
+  Copy,
   ExternalLink,
-  Play,
+  FileText,
   GitBranch,
+  Hash,
+  Link2,
+  Network,
+  Play,
 } from 'lucide-react'
-import { useQuery } from '@tanstack/react-query'
-import { timelineApi } from '@/lib/api-client'
-import { formatFullDateTime } from '@/lib/format-date'
-import { useRequireAuth } from '@/hooks/useRequireAuth'
-import { useWorkflowsByEventType } from '@/hooks/useWorkflowsByEventType'
-import { Breadcrumbs } from '@/components/ui/Breadcrumbs'
-import { SkeletonBreadcrumbs, Skeleton } from '@/components/ui/Skeleton'
-import { Button } from '@/components/ui/button'
+import { useCallback, useEffect, useId, useState } from 'react'
 import { DocumentList } from '@/components/documents/DocumentList'
 import { PayloadModernView } from '@/components/events'
+import { Breadcrumbs } from '@/components/ui/Breadcrumbs'
+import { Button } from '@/components/ui/button'
 import { LoadingIcon } from '@/components/ui/icons'
-import type { EventResponse, EventListResponse } from '@/lib/types'
+import { Skeleton, SkeletonBreadcrumbs } from '@/components/ui/Skeleton'
+import { useRequireAuth } from '@/hooks/useRequireAuth'
+import { useWorkflowsByEventType } from '@/hooks/useWorkflowsByEventType'
+import { timelineApi } from '@/lib/api-client'
+import { formatFullDateTime } from '@/lib/format-date'
+import { requireAuthBeforeLoad } from '@/lib/route-auth'
+import type { EventListResponse, EventResponse } from '@/lib/types'
 
 export const Route = createFileRoute('/subjects/$subjectId_/events/$eventId')({
   beforeLoad: () => {
@@ -132,6 +132,43 @@ function EventTypeWorkflowsSection({ eventType }: { eventType: string }) {
   )
 }
 
+interface HashFieldProps {
+  label: string
+  value: string | null
+  isCopied: boolean
+  onCopy: () => void
+}
+
+function HashField({ label, value, isCopied, onCopy }: HashFieldProps) {
+  const fieldId = useId()
+  if (!value) return null
+
+  return (
+    <div className="space-y-1">
+      <label htmlFor={fieldId} className="text-xs font-medium text-muted-foreground">
+        {label}
+      </label>
+      <div id={fieldId} className="flex items-center gap-2 group">
+        <code className="flex-1 font-mono text-xs bg-muted/50 px-3 py-2 rounded-none break-all">
+          {value}
+        </code>
+        <button
+          type="button"
+          onClick={onCopy}
+          className="p-2 hover:bg-muted rounded-none transition-colors opacity-0 group-hover:opacity-100"
+          title="Copy"
+        >
+          {isCopied ? (
+            <CheckCircle className="w-4 h-4 text-green-500" />
+          ) : (
+            <Copy className="w-4 h-4 text-muted-foreground" />
+          )}
+        </button>
+      </div>
+    </div>
+  )
+}
+
 function EventDetailPage() {
   const { subjectId, eventId } = Route.useParams()
   const navigate = useNavigate()
@@ -144,17 +181,7 @@ function EventDetailPage() {
   const [copiedField, setCopiedField] = useState<string | null>(null)
   const [documentCount, setDocumentCount] = useState<number | null>(null)
 
-  useEffect(() => {
-    if (authState.user) {
-      fetchData()
-    }
-  }, [eventId, subjectId, authState.user])
-
-  useEffect(() => {
-    setDocumentCount(null)
-  }, [eventId])
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true)
     setError(null)
 
@@ -177,7 +204,7 @@ function EventDetailPage() {
       if (eventsData) {
         // Sort by event_time ascending
         const sorted = [...eventsData].sort(
-          (a, b) => new Date(a.event_time).getTime() - new Date(b.event_time).getTime()
+          (a, b) => new Date(a.event_time).getTime() - new Date(b.event_time).getTime(),
         )
         setAllEvents(sorted)
       }
@@ -187,7 +214,18 @@ function EventDetailPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [eventId, subjectId])
+
+  useEffect(() => {
+    if (authState.user) {
+      fetchData()
+    }
+  }, [authState.user, fetchData])
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: eventId is the trigger; moving to another event is what clears the count.
+  useEffect(() => {
+    setDocumentCount(null)
+  }, [eventId])
 
   const copyToClipboard = (text: string, field: string) => {
     navigator.clipboard.writeText(text)
@@ -257,40 +295,8 @@ function EventDetailPage() {
     )
   }
 
-  const HashField = ({
-    label,
-    value,
-    fieldKey,
-  }: {
-    label: string
-    value: string | null
-    fieldKey: string
-  }) => {
-    if (!value) return null
-    const isCopied = copiedField === fieldKey
-
-    return (
-      <div className="space-y-1">
-        <label className="text-xs font-medium text-muted-foreground">{label}</label>
-        <div className="flex items-center gap-2 group">
-          <code className="flex-1 font-mono text-xs bg-muted/50 px-3 py-2 rounded-none break-all">
-            {value}
-          </code>
-          <button
-            onClick={() => copyToClipboard(value, fieldKey)}
-            className="p-2 hover:bg-muted rounded-none transition-colors opacity-0 group-hover:opacity-100"
-            title="Copy"
-          >
-            {isCopied ? (
-              <CheckCircle className="w-4 h-4 text-green-500" />
-            ) : (
-              <Copy className="w-4 h-4 text-muted-foreground" />
-            )}
-          </button>
-        </div>
-      </div>
-    )
-  }
+  const rawPreviousHash = event.payload?.previous_hash
+  const previousHash = typeof rawPreviousHash === 'string' ? rawPreviousHash : null
 
   return (
     <>
@@ -298,7 +304,7 @@ function EventDetailPage() {
       <Breadcrumbs
         items={[
           { label: 'Subjects', href: '/subjects' },
-          { label: subjectId.slice(0, 8) + '...', href: `/subjects/${subjectId}` },
+          { label: `${subjectId.slice(0, 8)}...`, href: `/subjects/${subjectId}` },
           { label: `Event #${currentIndex.toString().padStart(3, '0')}` },
         ]}
       />
@@ -394,9 +400,7 @@ function EventDetailPage() {
               <Clock className="w-5 h-5 text-muted-foreground" />
               <div>
                 <p className="text-xs text-muted-foreground">Event Time</p>
-                <p className="text-sm font-medium">
-                  {formatFullDateTime(event.event_time)}
-                </p>
+                <p className="text-sm font-medium">{formatFullDateTime(event.event_time)}</p>
               </div>
             </div>
 
@@ -409,9 +413,7 @@ function EventDetailPage() {
             </div>
           </div>
 
-          {event.workflow_instance_id && (
-            <EventFlowLink flowId={event.workflow_instance_id} />
-          )}
+          {event.workflow_instance_id && <EventFlowLink flowId={event.workflow_instance_id} />}
 
           {/* Hashes */}
           <div className="space-y-3">
@@ -420,17 +422,27 @@ function EventDetailPage() {
               Cryptographic Hashes
             </h3>
 
-            <HashField label="Event Hash" value={event.hash} fieldKey="hash" />
+            <HashField
+              label="Event Hash"
+              value={event.hash}
+              isCopied={copiedField === 'hash'}
+              onCopy={() => copyToClipboard(event.hash, 'hash')}
+            />
 
             {isGenesis ? (
               <div className="space-y-1">
-                <label className="text-xs font-medium text-muted-foreground">Previous Hash</label>
+                <span className="text-xs font-medium text-muted-foreground">Previous Hash</span>
                 <div className="px-3 py-2 bg-primary/5 border border-primary/20 rounded-none text-xs text-primary">
                   Genesis block - no previous hash
                 </div>
               </div>
             ) : (
-              <HashField label="Previous Hash" value={(event.payload as any)?.previous_hash ?? null} fieldKey="prev_hash" />
+              <HashField
+                label="Previous Hash"
+                value={previousHash}
+                isCopied={copiedField === 'prev_hash'}
+                onCopy={() => copyToClipboard(previousHash ?? '', 'prev_hash')}
+              />
             )}
 
             {/* Chain Link Visualization */}
@@ -438,8 +450,8 @@ function EventDetailPage() {
               <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-none">
                 <Link2 className="w-4 h-4 text-green-600" />
                 <span className="text-xs text-green-700 dark:text-green-300">
-                  Chain link verified: This event's previous_hash matches block #{currentIndex - 1}'s
-                  hash
+                  Chain link verified: This event's previous_hash matches block #{currentIndex - 1}
+                  's hash
                 </span>
               </div>
             )}

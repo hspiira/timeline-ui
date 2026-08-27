@@ -3,17 +3,17 @@
  * trigger and steps are read-only (set at creation).
  */
 
-import { useState, useMemo } from 'react'
 import { ChevronRight, FileText, ListTodo, Pencil } from 'lucide-react'
-import { Modal } from '@/components/ui/Modal'
+import { useId, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
-import { useFormSubmit } from '@/hooks/useFormSubmit'
 import { ErrorAlert } from '@/components/ui/ErrorAlert'
 import { FormField, FormTextarea } from '@/components/ui/FormField'
-import { getStepsFromWorkflowActions } from '@/lib/workflow-builder/parse-workflow-actions'
+import { Input } from '@/components/ui/input'
+import { Modal } from '@/components/ui/Modal'
+import { useFormSubmit } from '@/hooks/useFormSubmit'
 import type { components } from '@/lib/timeline-api'
+import { getStepsFromWorkflowActions } from '@/lib/workflow-builder/parse-workflow-actions'
 
 type Workflow = components['schemas']['WorkflowResponse']
 type WorkflowUpdate = components['schemas']['WorkflowUpdate']
@@ -25,6 +25,10 @@ interface WorkflowEditModalProps {
 }
 
 export function WorkflowEditModal({ workflow, onClose, onSave }: WorkflowEditModalProps) {
+  const workflowEditDescId = useId()
+  const workflowEditFormId = useId()
+  const workflowEditNameId = useId()
+  const setisactiveVTrueId = useId()
   const [name, setName] = useState(workflow.name)
   const [description, setDescription] = useState(workflow.description ?? '')
   const [executionOrder, setExecutionOrder] = useState(workflow.execution_order ?? 0)
@@ -32,10 +36,7 @@ export function WorkflowEditModal({ workflow, onClose, onSave }: WorkflowEditMod
   const [editingDetails, setEditingDetails] = useState(false)
   const { execute, loading, error, setError } = useFormSubmit()
 
-  const steps = useMemo(
-    () => getStepsFromWorkflowActions(workflow.actions),
-    [workflow.actions]
-  )
+  const steps = useMemo(() => getStepsFromWorkflowActions(workflow.actions), [workflow.actions])
   const triggerLabel = workflow.trigger_event_type || '—'
   const stepCount = steps.length
 
@@ -49,7 +50,7 @@ export function WorkflowEditModal({ workflow, onClose, onSave }: WorkflowEditMod
         description: description.trim() || undefined,
         execution_order: executionOrder,
         is_active: isActive,
-      })
+      }),
     )
 
     if (success) {
@@ -77,7 +78,10 @@ export function WorkflowEditModal({ workflow, onClose, onSave }: WorkflowEditMod
       footer={
         <div className="flex flex-wrap items-center justify-between gap-6">
           <div className="flex flex-wrap items-center gap-8">
-            <label className="flex items-center gap-2.5 cursor-pointer select-none">
+            <label
+              htmlFor={setisactiveVTrueId}
+              className="flex items-center gap-2.5 cursor-pointer select-none"
+            >
               <Checkbox
                 checked={isActive}
                 onCheckedChange={(v) => setIsActive(v === true)}
@@ -85,7 +89,7 @@ export function WorkflowEditModal({ workflow, onClose, onSave }: WorkflowEditMod
               />
               <span className="text-sm font-medium text-foreground">Active</span>
             </label>
-            <div className="flex items-center gap-2">
+            <div id={setisactiveVTrueId} className="flex items-center gap-2">
               <span className="text-sm text-muted-foreground">Run order</span>
               <Input
                 type="number"
@@ -102,14 +106,14 @@ export function WorkflowEditModal({ workflow, onClose, onSave }: WorkflowEditMod
             <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>
               Cancel
             </Button>
-            <Button type="submit" form="workflow-edit-form" variant="primary" disabled={loading}>
+            <Button type="submit" form={workflowEditFormId} variant="primary" disabled={loading}>
               {loading ? 'Saving…' : 'Save changes'}
             </Button>
           </div>
         </div>
       }
     >
-      <form id="workflow-edit-form" onSubmit={handleSubmit} className="flex flex-col">
+      <form id={workflowEditFormId} onSubmit={handleSubmit} className="flex flex-col">
         <section className="flex flex-col gap-4">
           <h3 className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
             Overview
@@ -119,7 +123,7 @@ export function WorkflowEditModal({ workflow, onClose, onSave }: WorkflowEditMod
               <div className="p-5 space-y-4">
                 <FormField label="Name">
                   <Input
-                    id="workflow-edit-name"
+                    id={workflowEditNameId}
                     type="text"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
@@ -130,7 +134,7 @@ export function WorkflowEditModal({ workflow, onClose, onSave }: WorkflowEditMod
                 </FormField>
                 <FormField label="Description">
                   <FormTextarea
-                    id="workflow-edit-desc"
+                    id={workflowEditDescId}
                     value={description}
                     onChange={(e) => setDescription(e.target.value)}
                     placeholder="What this workflow does"
@@ -163,7 +167,9 @@ export function WorkflowEditModal({ workflow, onClose, onSave }: WorkflowEditMod
             ) : (
               <div className="flex items-start justify-between gap-4 p-5">
                 <div className="min-w-0 flex-1">
-                  <p className="text-base font-semibold text-foreground">{name || 'Untitled workflow'}</p>
+                  <p className="text-base font-semibold text-foreground">
+                    {name || 'Untitled workflow'}
+                  </p>
                   <p className="mt-1 text-sm text-muted-foreground whitespace-pre-wrap">
                     {description || '—'}
                   </p>
@@ -220,12 +226,15 @@ export function WorkflowEditModal({ workflow, onClose, onSave }: WorkflowEditMod
                           <p className="text-xs text-muted-foreground">{step.description}</p>
                         )}
                         {step.condition && (
-                          <p className="text-xs text-muted-foreground/80 italic">{step.condition}</p>
+                          <p className="text-xs text-muted-foreground/80 italic">
+                            {step.condition}
+                          </p>
                         )}
                         {step.tasks.length > 0 && (
                           <ul className="mt-2 space-y-1">
                             {step.tasks.map((task, ti) => (
                               <li
+                                // biome-ignore lint/suspicious/noArrayIndexKey: read-only list, replaced wholesale rather than reordered in place.
                                 key={ti}
                                 className="flex items-center gap-2 text-xs text-muted-foreground"
                               >

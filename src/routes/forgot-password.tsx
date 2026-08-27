@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
+import { ArrowLeft, KeyRound } from 'lucide-react'
 import { AuthPageLayout } from '@/components/auth/AuthPageLayout'
 import { Button } from '@/components/ui/button'
-import { ArrowLeft, KeyRound } from 'lucide-react'
 
 export const Route = createFileRoute('/forgot-password')({
   component: ForgotPasswordPage,
@@ -15,13 +15,11 @@ function ForgotPasswordPage() {
           <div className="flex justify-center mb-6">
             <KeyRound className="w-12 h-12 text-muted-foreground" />
           </div>
-          <h1 className="text-xl font-bold text-center mb-2 text-foreground">
-            Forgot password
-          </h1>
+          <h1 className="text-xl font-bold text-center mb-2 text-foreground">Forgot password</h1>
           <p className="text-sm text-muted-foreground text-center mb-6">
             Password reset is not yet available. Contact your administrator to reset your password.
           </p>
-          <Link to="/login" search={{ tenant: '', redirect: undefined, sessionExpired: false }}>
+          <Link to="/login" search={{}}>
             <Button variant="outline" className="w-full">
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Sign In

@@ -1,8 +1,8 @@
-import { useState, useRef } from 'react'
 import { Upload, X } from 'lucide-react'
-import { useToast } from '@/hooks/useToast'
-import { LoadingIcon } from '@/components/ui/icons'
+import { useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
+import { LoadingIcon } from '@/components/ui/icons'
+import { useToast } from '@/hooks/useToast'
 
 export interface EventDocumentUploadProps {
   subjectId: string
@@ -30,10 +30,7 @@ const ALLOWED_TYPES = [
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 ]
 
-export function EventDocumentUpload({
-  onFilesChanged,
-  onError,
-}: EventDocumentUploadProps) {
+export function EventDocumentUpload({ onFilesChanged, onError }: EventDocumentUploadProps) {
   const [stagedFiles, setStagedFiles] = useState<StagedFile[]>([])
   const [isDragging, setIsDragging] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -48,7 +45,6 @@ export function EventDocumentUpload({
     }
     return null
   }
-
 
   const handleFiles = (fileList: FileList) => {
     const newFiles: StagedFile[] = []
@@ -104,8 +100,8 @@ export function EventDocumentUpload({
 
   return (
     <div className="space-y-2.5">
-
       {/* Upload Area */}
+      {/* biome-ignore lint/a11y/noStaticElementInteractions: drag and drop is a pointer-only affordance; the file input and the button overlaying this area carry the keyboard path. */}
       <div
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -129,23 +125,29 @@ export function EventDocumentUpload({
             <p className="font-medium text-foreground text-sm">Drag and drop files here</p>
             <p className="text-xs text-muted-foreground">or click to select files</p>
           </div>
-          <p className="text-xs text-muted-foreground">Max 100MB per file. Supported: PDF, images, Word, Excel</p>
+          <p className="text-xs text-muted-foreground">
+            Max 100MB per file. Supported: PDF, images, Word, Excel
+          </p>
         </div>
 
         <Button
-          children={<Upload className="w-4 h-4" />}
           variant="ghost"
           onClick={() => inputRef.current?.click()}
           className="absolute inset-0 opacity-0"
           aria-label="Upload files"
-        />
+        >
+          <Upload className="w-4 h-4" />
+        </Button>
       </div>
 
       {/* File List */}
       {stagedFiles.length > 0 && (
         <div className="space-y-1.5">
           {stagedFiles.map((stagedFile) => (
-            <div key={stagedFile.id} className="flex items-center gap-2.5 p-2.5 bg-card rounded-none border border-border/50">
+            <div
+              key={stagedFile.id}
+              className="flex items-center gap-2.5 p-2.5 bg-card rounded-none border border-border/50"
+            >
               {/* Status Icon */}
               <div className="shrink-0">
                 <LoadingIcon size="sm" className="text-primary" />
@@ -154,8 +156,12 @@ export function EventDocumentUpload({
               {/* File Info */}
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium truncate">{stagedFile.file.name}</p>
-                <p className="text-xs text-muted-foreground">{(stagedFile.file.size / 1024 / 1024).toFixed(2)}MB</p>
-                <p className="text-xs text-muted-foreground italic">Staged - will upload with event</p>
+                <p className="text-xs text-muted-foreground">
+                  {(stagedFile.file.size / 1024 / 1024).toFixed(2)}MB
+                </p>
+                <p className="text-xs text-muted-foreground italic">
+                  Staged - will upload with event
+                </p>
               </div>
 
               {/* Remove Button */}

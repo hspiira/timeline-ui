@@ -1,16 +1,16 @@
-import { useMemo, useState } from 'react'
+import { format, subDays } from 'date-fns'
+import { useId, useMemo, useState } from 'react'
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
-import { subDays, format } from 'date-fns'
-import { DashboardCard } from './DashboardCard'
-import { Skeleton } from '@/components/ui/Skeleton'
 import {
+  type ChartConfig,
   ChartContainer,
   ChartLegend,
   ChartLegendContent,
   ChartTooltip,
   ChartTooltipContent,
-  type ChartConfig,
 } from '@/components/ui/chart'
+import { Skeleton } from '@/components/ui/Skeleton'
+import { DashboardCard } from './DashboardCard'
 
 /** Distinct colors: blue for events, amber for subjects (theme-aware for dark mode) */
 const chartConfig = {
@@ -40,7 +40,7 @@ interface RecentEventForChart {
 /** Build daily series: events count and unique subjects (active) per day from recent_events */
 function buildChartDataFromRecent(
   days: number,
-  recentEvents: RecentEventForChart[]
+  recentEvents: RecentEventForChart[],
 ): { date: string; events: number; subjects: number }[] {
   const now = new Date()
   const byDate = new Map<string, { events: number; subjectIds: Set<string> }>()
@@ -83,18 +83,18 @@ export function TurnoverChartCard({
   recentEvents = [],
   loading = false,
 }: TurnoverChartCardProps) {
+  const gradientPrefix = useId().replace(/:/g, '')
+  const fillEventsId = `${gradientPrefix}-events`
+  const fillSubjectsId = `${gradientPrefix}-subjects`
   const [timeRange, setTimeRange] = useState('7d')
   const days = timeRange === '30d' ? 30 : timeRange === '14d' ? 14 : 7
 
   const chartData = useMemo(
     () => buildChartDataFromRecent(days, recentEvents ?? []),
-    [days, recentEvents]
+    [days, recentEvents],
   )
 
-  const periodEvents = useMemo(
-    () => chartData.reduce((s, d) => s + d.events, 0),
-    [chartData]
-  )
+  const periodEvents = useMemo(() => chartData.reduce((s, d) => s + d.events, 0), [chartData])
   const periodSubjects = useMemo(() => {
     const ids = new Set<string>()
     for (const e of recentEvents ?? []) {
@@ -127,6 +127,7 @@ export function TurnoverChartCard({
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {loading ? (
             Array.from({ length: 4 }).map((_, i) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length loading placeholder; the list never reorders.
               <div key={i} className="p-3 border border-border/40 rounded-none">
                 <Skeleton className="h-3 w-16 mb-2" />
                 <Skeleton className="h-7 w-12" />
@@ -148,16 +149,20 @@ export function TurnoverChartCard({
             <ChartContainer config={chartConfig} className="h-full w-full">
               <AreaChart data={chartData} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
                 <defs>
-                  <linearGradient id="fillEvents" x1="0" y1="0" x2="0" y2="1">
+                  <linearGradient id={fillEventsId} x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="var(--color-events)" stopOpacity={0.8} />
                     <stop offset="95%" stopColor="var(--color-events)" stopOpacity={0.1} />
                   </linearGradient>
-                  <linearGradient id="fillSubjects" x1="0" y1="0" x2="0" y2="1">
+                  <linearGradient id={fillSubjectsId} x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="var(--color-subjects)" stopOpacity={0.8} />
                     <stop offset="95%" stopColor="var(--color-subjects)" stopOpacity={0.1} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid vertical={false} strokeDasharray="3 3" className="stroke-border/50" />
+                <CartesianGrid
+                  vertical={false}
+                  strokeDasharray="3 3"
+                  className="stroke-border/50"
+                />
                 <XAxis
                   dataKey="date"
                   tickLine={false}
@@ -179,14 +184,14 @@ export function TurnoverChartCard({
                 <Area
                   dataKey="subjects"
                   type="natural"
-                  fill="url(#fillSubjects)"
+                  fill={`url(#${fillSubjectsId})`}
                   stroke="var(--color-subjects)"
                   strokeWidth={1.5}
                 />
                 <Area
                   dataKey="events"
                   type="natural"
-                  fill="url(#fillEvents)"
+                  fill={`url(#${fillEventsId})`}
                   stroke="var(--color-events)"
                   strokeWidth={1.5}
                 />
@@ -204,7 +209,9 @@ function MetricBox({ label, value }: { label: string; value: number }) {
   return (
     <div className="p-3 border border-border/40 rounded-none">
       <p className="text-xs text-muted-foreground mb-1">{label}</p>
-      <p className="font-display text-lg font-bold text-foreground tabular-nums">{value.toLocaleString()}</p>
+      <p className="font-display text-lg font-bold text-foreground tabular-nums">
+        {value.toLocaleString()}
+      </p>
     </div>
   )
 }

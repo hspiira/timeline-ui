@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { getAuthToken, getApiBaseUrl } from '@/lib/api-client'
+import { getApiBaseUrl, getAuthToken } from '@/lib/api-client'
 
 export type SyncStage =
   | 'started'
@@ -91,12 +91,14 @@ export function useSyncProgress({
         onError?.(err instanceof Error ? err : new Error('Unknown error'))
       }
     },
-    [onProgress, onError]
+    [onProgress, onError],
   )
 
   /**
    * Connect to WebSocket server
    */
+  const attemptReconnectRef = useRef<() => void>(() => {})
+
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       return
@@ -112,9 +114,10 @@ export function useSyncProgress({
       const apiUrl = getApiBaseUrl()
       const wsProtocol = apiUrl.startsWith('https') ? 'wss:' : 'ws:'
       const apiHost = new URL(apiUrl).host
-      const wsUrl = `${wsProtocol}//${apiHost}/api/v1/ws?token=${encodeURIComponent(token)}`
+      const wsUrl = `${wsProtocol}//${apiHost}/api/v1/ws`
 
-      wsRef.current = new WebSocket(wsUrl)
+      // Subprotocol, not a query parameter, which proxies write to access logs.
+      wsRef.current = new WebSocket(wsUrl, ['bearer', token])
 
       wsRef.current.onopen = () => {
         console.log('Sync progress WebSocket connected')
@@ -139,12 +142,12 @@ export function useSyncProgress({
           return
         }
 
-        attemptReconnect()
+        attemptReconnectRef.current()
       }
     } catch (err) {
       console.error('Failed to create WebSocket:', err)
       onError?.(err instanceof Error ? err : new Error('Failed to create WebSocket'))
-      attemptReconnect()
+      attemptReconnectRef.current()
     }
   }, [handleMessage, onError])
 
@@ -153,22 +156,24 @@ export function useSyncProgress({
    */
   const attemptReconnect = useCallback(() => {
     if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
-      console.warn(
-        `Max reconnection attempts (${MAX_RECONNECT_ATTEMPTS}) reached. Giving up.`
-      )
+      console.warn(`Max reconnection attempts (${MAX_RECONNECT_ATTEMPTS}) reached. Giving up.`)
       setIsReconnecting(false)
       return
     }
 
     setIsReconnecting(true)
     reconnectAttemptsRef.current += 1
-    const delay = RECONNECT_INTERVAL * Math.pow(2, reconnectAttemptsRef.current - 1)
+    const delay = RECONNECT_INTERVAL * 2 ** (reconnectAttemptsRef.current - 1)
 
     reconnectTimeoutRef.current = setTimeout(() => {
       console.log(`Attempting to reconnect (attempt ${reconnectAttemptsRef.current})...`)
       connect()
     }, delay)
   }, [connect])
+
+  useEffect(() => {
+    attemptReconnectRef.current = attemptReconnect
+  }, [attemptReconnect])
 
   /**
    * Disconnect from WebSocket
@@ -215,14 +220,14 @@ export function useSyncProgress({
     (accountId: string): SyncProgressEvent | null => {
       return syncProgress[accountId] || null
     },
-    [syncProgress]
+    [syncProgress],
   )
 
   /**
    * Check if any account is currently syncing
    */
   const isAnySyncing = Object.values(syncProgress).some(
-    (p) => p.stage !== 'completed' && p.stage !== 'failed'
+    (p) => p.stage !== 'completed' && p.stage !== 'failed',
   )
 
   return {

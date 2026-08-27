@@ -25,12 +25,10 @@ export async function requireAuthBeforeLoad(intendedPath?: string) {
   await authActions.initAuth()
   const token = getAuthToken()
   if (!token) {
-    const redirectPath = safeRedirectPath(
-      intendedPath ?? window.location.pathname
-    )
+    const redirectPath = safeRedirectPath(intendedPath ?? window.location.pathname)
     throw redirect({
       to: '/login',
-      search: { tenant: '', redirect: redirectPath, sessionExpired: false },
+      search: { redirect: redirectPath },
       replace: true,
     })
   }

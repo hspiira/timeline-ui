@@ -1,19 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { useEffect, useState } from 'react'
-import { timelineApi } from '@/lib/api-client'
-import { useRequireAuth } from '@/hooks/useRequireAuth'
+import { AlertCircle, ChevronDown, ChevronRight, RefreshCw, ShieldAlert } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Line, LineChart, ResponsiveContainer, Tooltip, YAxis } from 'recharts'
+import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/Skeleton'
 import { StatusBadge } from '@/components/ui/StatusBadge'
-import { Button } from '@/components/ui/button'
-import { AlertCircle, RefreshCw, ShieldAlert, ChevronDown, ChevronRight } from 'lucide-react'
-import {
-  LineChart,
-  Line,
-  ResponsiveContainer,
-  YAxis,
-  Tooltip,
-} from 'recharts'
+import { useRequireAuth } from '@/hooks/useRequireAuth'
+import { timelineApi } from '@/lib/api-client'
 
 const LAG_HISTORY_MAX = 30
 
@@ -67,7 +61,7 @@ export function ConnectorsHealthPage() {
     refetchInterval: 15_000,
   })
 
-  const items = (data?.connectors ?? []) as ConnectorHealthItem[]
+  const items = useMemo(() => (data?.connectors ?? []) as ConnectorHealthItem[], [data])
 
   useEffect(() => {
     if (!items.length) return
@@ -86,9 +80,13 @@ export function ConnectorsHealthPage() {
       }
       return next
     })
-  }, [data?.connectors])
+  }, [items])
 
-  const is403 = error && typeof error === 'object' && 'is403' in error && (error as Error & { is403?: boolean }).is403
+  const is403 =
+    error &&
+    typeof error === 'object' &&
+    'is403' in error &&
+    (error as Error & { is403?: boolean }).is403
 
   return (
     <div className="space-y-4">
@@ -111,9 +109,13 @@ export function ConnectorsHealthPage() {
       {is403 && (
         <div className="p-4 rounded-none border border-border bg-card/80 flex flex-col items-center gap-3 text-center">
           <ShieldAlert className="w-10 h-10 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">You don’t have permission to view connector health.</p>
+          <p className="text-sm text-muted-foreground">
+            You don’t have permission to view connector health.
+          </p>
           <Link to="/">
-            <Button variant="outline" size="sm">Back to Dashboard</Button>
+            <Button variant="outline" size="sm">
+              Back to Dashboard
+            </Button>
           </Link>
         </div>
       )}
@@ -140,12 +142,11 @@ export function ConnectorsHealthPage() {
                   key={key}
                   className="rounded-none border border-border/50 bg-card/80 overflow-hidden"
                 >
-                  <div
-                    className="p-4 flex flex-wrap items-center gap-4 cursor-pointer hover:bg-muted/20 transition-colors"
+                  <button
+                    type="button"
+                    className="w-full text-left p-4 flex flex-wrap items-center gap-4 cursor-pointer hover:bg-muted/20 transition-colors"
                     onClick={() => setExpandedId((id) => (id === key ? null : key))}
-                    onKeyDown={(e) => e.key === 'Enter' && setExpandedId((id) => (id === key ? null : key))}
-                    role="button"
-                    tabIndex={0}
+                    aria-expanded={isExpanded}
                   >
                     <div className="flex items-center gap-1 shrink-0">
                       {isExpanded ? (
@@ -162,9 +163,7 @@ export function ConnectorsHealthPage() {
                       Last event: {formatRelativeTime(item.last_event_at ?? item.last_sync)}
                     </span>
                     {typeof item.lag === 'number' && (
-                      <span className="text-sm text-muted-foreground">
-                        Lag: {item.lag}
-                      </span>
+                      <span className="text-sm text-muted-foreground">Lag: {item.lag}</span>
                     )}
                     {item.error && (
                       <span className="text-xs text-status-error">{String(item.error)}</span>
@@ -172,19 +171,32 @@ export function ConnectorsHealthPage() {
                     {connectorLagHistory.length > 0 && (
                       <div className="w-24 h-8 shrink-0 ml-auto">
                         <ResponsiveContainer width="100%" height="100%">
-                          <LineChart data={connectorLagHistory.map((lag, idx) => ({ idx, lag }))} margin={{ top: 2, right: 2, bottom: 2, left: 2 }}>
+                          <LineChart
+                            data={connectorLagHistory.map((lag, idx) => ({ idx, lag }))}
+                            margin={{ top: 2, right: 2, bottom: 2, left: 2 }}
+                          >
                             <YAxis hide domain={['auto', 'auto']} />
-                            <Tooltip content={({ active, payload }) => (active && payload?.[0] ? (
-                              <span className="text-xs bg-popover border border-border px-2 py-1 rounded-none shadow">
-                                Lag: {payload[0].value}
-                              </span>
-                            ) : null} />
-                            <Line type="monotone" dataKey="lag" stroke="var(--chart-1, hsl(var(--primary)))" strokeWidth={1.5} dot={false} />
+                            <Tooltip
+                              content={({ active, payload }) =>
+                                active && payload?.[0] ? (
+                                  <span className="text-xs bg-popover border border-border px-2 py-1 rounded-none shadow">
+                                    Lag: {payload[0].value}
+                                  </span>
+                                ) : null
+                              }
+                            />
+                            <Line
+                              type="monotone"
+                              dataKey="lag"
+                              stroke="var(--chart-1, hsl(var(--primary)))"
+                              strokeWidth={1.5}
+                              dot={false}
+                            />
                           </LineChart>
                         </ResponsiveContainer>
                       </div>
                     )}
-                  </div>
+                  </button>
                   {isExpanded && (
                     <div className="border-t border-border/50 p-4 bg-muted/10 space-y-3">
                       <h3 className="text-sm font-semibold text-foreground">Connector detail</h3>
@@ -213,7 +225,8 @@ export function ConnectorsHealthPage() {
                         )}
                       </dl>
                       <p className="text-xs text-muted-foreground">
-                        Connector mapping UI will be available when the backend exposes connector mappings CRUD (see roadmap).
+                        Connector mapping UI will be available when the backend exposes connector
+                        mappings CRUD (see roadmap).
                       </p>
                     </div>
                   )}

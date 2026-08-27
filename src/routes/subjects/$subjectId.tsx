@@ -1,33 +1,47 @@
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
-import { requireAuthBeforeLoad } from '@/lib/route-auth'
-import { Calendar, Tag, AlertCircle, Boxes, FileText, Shield, ChevronLeft, ChevronRight, Upload, Download, Trash2, Database, Link2 } from 'lucide-react'
-import { useEventStream } from '@/hooks/useActivitySubscription'
-import { useEffect, useState, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useStore } from '@tanstack/react-store'
-import { timelineApi } from '@/lib/api-client'
-import { authStore } from '@/lib/auth-store'
-import { DocumentUpload } from '@/components/documents/DocumentUpload'
+import {
+  AlertCircle,
+  Boxes,
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  Database,
+  Download,
+  FileText,
+  Link2,
+  Shield,
+  Tag,
+  Trash2,
+  Upload,
+} from 'lucide-react'
+import { useCallback, useEffect, useId, useState } from 'react'
 import { DocumentList } from '@/components/documents/DocumentList'
+import { DocumentUpload } from '@/components/documents/DocumentUpload'
 import { DocumentViewer } from '@/components/documents/DocumentViewer'
 import { EventBlockChain, EventDetailPanel } from '@/components/events'
-import { Breadcrumbs } from '@/components/ui/Breadcrumbs'
-import { SkeletonBreadcrumbs, SkeletonEventTimeline, Skeleton } from '@/components/ui/Skeleton'
-import { EmptyState } from '@/components/ui/EmptyState'
-import type { SubjectResponse, EventResponse, EventListResponse } from '@/lib/types'
-import { LoadingIcon } from '@/components/ui/icons'
-import { Button } from '@/components/ui/button'
-import { Modal, ModalActions } from '@/components/ui/Modal'
-import { Sheet, SheetContent } from '@/components/ui/sheet'
-import { getApiErrorDisplay } from '@/lib/api-utils'
-import { useHasSubjectExportAccess } from '@/hooks/useHasSubjectExportAccess'
-import { useHasSubjectErasureAccess } from '@/hooks/useHasSubjectErasureAccess'
 import { SubjectRelationshipsTab } from '@/components/subjects/SubjectRelationshipsTab'
-import { useEventTypes } from '@/hooks/useEventTypes'
+import { Breadcrumbs } from '@/components/ui/Breadcrumbs'
+import { Button } from '@/components/ui/button'
 import { SingleSelectCombobox } from '@/components/ui/combobox'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { LoadingIcon } from '@/components/ui/icons'
+import { Modal, ModalActions } from '@/components/ui/Modal'
+import { Skeleton, SkeletonBreadcrumbs, SkeletonEventTimeline } from '@/components/ui/Skeleton'
 import { StatusBadge } from '@/components/ui/StatusBadge'
+import { Sheet, SheetContent } from '@/components/ui/sheet'
+import { useEventStream } from '@/hooks/useActivitySubscription'
+import { useEventTypes } from '@/hooks/useEventTypes'
+import { useHasSubjectErasureAccess } from '@/hooks/useHasSubjectErasureAccess'
+import { useHasSubjectExportAccess } from '@/hooks/useHasSubjectExportAccess'
+import { timelineApi } from '@/lib/api-client'
+import { getApiErrorDisplay } from '@/lib/api-utils'
+import { authStore } from '@/lib/auth-store'
 import { formatFullDateTime } from '@/lib/format-date'
+import { requireAuthBeforeLoad } from '@/lib/route-auth'
 import type { components } from '@/lib/timeline-api'
+import type { EventListResponse, EventResponse, SubjectResponse } from '@/lib/types'
 
 type IntegrityEpochItem = components['schemas']['IntegrityEpochItem']
 
@@ -36,12 +50,20 @@ const INTEGRITY_TAB_EPOCHS_LIMIT = 5
 
 type Tab = 'events' | 'documents' | 'state' | 'relationships' | 'integrity'
 
+type SubjectSearch = {
+  tab: Tab
+  event_id?: string
+  event_type?: string
+  from?: string
+  to?: string
+}
+
 export const Route = createFileRoute('/subjects/$subjectId')({
   beforeLoad: () => {
     requireAuthBeforeLoad()
   },
   component: SubjectDetailPage,
-  validateSearch: (search: Record<string, unknown>) => ({
+  validateSearch: (search: Record<string, unknown>): SubjectSearch => ({
     tab: (search.tab === 'documents'
       ? 'documents'
       : search.tab === 'state'
@@ -52,15 +74,24 @@ export const Route = createFileRoute('/subjects/$subjectId')({
             ? 'integrity'
             : 'events') as Tab,
     event_id: typeof search.event_id === 'string' ? search.event_id : undefined,
-    event_type: typeof search.event_type === 'string' ? search.event_type : '',
-    from: typeof search.from === 'string' ? search.from : '',
-    to: typeof search.to === 'string' ? search.to : '',
+    event_type: typeof search.event_type === 'string' ? search.event_type : undefined,
+    from: typeof search.from === 'string' ? search.from : undefined,
+    to: typeof search.to === 'string' ? search.to : undefined,
   }),
 })
 
 export function SubjectDetailPage() {
+  const eventTypeId = useId()
+  const fromId = useId()
+  const toId = useId()
   const { subjectId } = Route.useParams()
-  const { tab: activeTab, event_id: eventIdFromUrl, event_type: searchEventType, from: searchFrom, to: searchTo } = Route.useSearch()
+  const {
+    tab: activeTab,
+    event_id: eventIdFromUrl,
+    event_type: searchEventType,
+    from: searchFrom,
+    to: searchTo,
+  } = Route.useSearch()
   const navigate = useNavigate()
   const authState = useStore(authStore)
   const [subject, setSubject] = useState<SubjectResponse | null>(null)
@@ -72,12 +103,20 @@ export function SubjectDetailPage() {
   const [filterDateTo, setFilterDateTo] = useState(searchTo ?? '')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [viewingDocument, setViewingDocument] = useState<{ id: string; filename: string; type: string } | null>(null)
+  const [viewingDocument, setViewingDocument] = useState<{
+    id: string
+    filename: string
+    type: string
+  } | null>(null)
   const [documentCounts, setDocumentCounts] = useState<Record<string, number>>({})
   const [subjectDocumentCount, setSubjectDocumentCount] = useState<number | null>(null)
   const [documentsRefreshKey, setDocumentsRefreshKey] = useState(0)
   const [showUploadPanel, setShowUploadPanel] = useState(false)
-  const [derivedState, setDerivedState] = useState<{ state: Record<string, unknown>; last_event_id: string | null; event_count: number } | null>(null)
+  const [derivedState, setDerivedState] = useState<{
+    state: Record<string, unknown>
+    last_event_id: string | null
+    event_count: number
+  } | null>(null)
   const [derivedStateLoading, setDerivedStateLoading] = useState(false)
   const [asOf, setAsOf] = useState<string | null>(null)
   const [showErasureModal, setShowErasureModal] = useState(false)
@@ -96,7 +135,13 @@ export function SubjectDetailPage() {
   const totalPages = totalEvents >= 0 ? Math.ceil(totalEvents / PAGE_SIZE) : null
   const hasMorePages = !hasFilters && events.length >= PAGE_SIZE
 
-  const searchFor = (overrides: { tab: Tab; event_id?: string; event_type?: string; from?: string; to?: string }) => ({
+  const searchFor = (overrides: {
+    tab: Tab
+    event_id?: string
+    event_type?: string
+    from?: string
+    to?: string
+  }) => ({
     tab: overrides.tab,
     event_id: overrides.event_id ?? undefined,
     event_type: overrides.event_type ?? filterEventType ?? '',
@@ -107,100 +152,43 @@ export function SubjectDetailPage() {
   // Redirect to login if not authenticated
   useEffect(() => {
     if (!authState.isLoading && !authState.user) {
-      navigate({ to: '/login', search: { tenant: '', redirect: undefined, sessionExpired: false } })
+      navigate({ to: '/login', search: {} })
     }
   }, [authState.isLoading, authState.user, navigate])
 
-  useEffect(() => {
-    if (authState.user) {
-      fetchSubject()
-    }
-  }, [subjectId, authState.user])
-
-  useEffect(() => {
-    setSubjectDocumentCount(null)
-  }, [subjectId])
-
-  // Sync filter state from URL (e.g. back/forward or shared link)
-  useEffect(() => {
-    setFilterEventType(searchEventType ?? '')
-    setFilterDateFrom(searchFrom ?? '')
-    setFilterDateTo(searchTo ?? '')
-  }, [searchEventType, searchFrom, searchTo])
-
-  // Reset to first page when filters change
-  useEffect(() => {
-    setCurrentPage(0)
-  }, [filterEventType, filterDateFrom, filterDateTo])
-
-  // Fetch events when page or filters change
-  useEffect(() => {
-    if (authState.user && subject) {
-      fetchEvents()
-    }
-  }, [currentPage, subject, filterEventType, filterDateFrom, filterDateTo])
-
-  // Deep-link: open event drawer when URL has event_id
-  useEffect(() => {
-    if (!eventIdFromUrl || !authState.user) return
-    const inPage = events.find((e) => e.id === eventIdFromUrl)
-    if (inPage) {
-      setEventDrawerEvent(inPage)
-      return
-    }
-    let cancelled = false
-    timelineApi.events.get(eventIdFromUrl).then(({ data }) => {
-      if (!cancelled && data) setEventDrawerEvent(data as EventResponse)
+  // Shared: fetch full details and document counts for a page of list items
+  const setEventsAndDocumentCounts = useCallback(async (pageItems: EventListResponse[]) => {
+    const fullEvents = await Promise.all(
+      pageItems.map(async (item: EventListResponse) => {
+        const { data } = await timelineApi.events.get(item.id)
+        return data
+      }),
+    )
+    setEvents(fullEvents.filter((e): e is EventResponse => e != null))
+    const documentPromises = pageItems.map(async (item: EventListResponse) => {
+      try {
+        const { data: docs, error } = await timelineApi.documents.listByEvent(item.id)
+        if (error) return { eventId: item.id, count: 0 }
+        return { eventId: item.id, count: Array.isArray(docs) ? docs.length : 0 }
+      } catch {
+        return { eventId: item.id, count: 0 }
+      }
     })
-    return () => { cancelled = true }
-  }, [eventIdFromUrl, authState.user, events])
+    const documentResults = await Promise.all(documentPromises)
+    const counts: Record<string, number> = {}
+    documentResults.forEach(({ eventId, count }: { eventId: string; count: number }) => {
+      counts[eventId] = count
+    })
+    setDocumentCounts(counts)
+  }, [])
 
-  // Fetch derived state when State tab is active (and when asOf changes)
-  useEffect(() => {
-    if (activeTab !== 'state' || !authState.user) return
-    let cancelled = false
-    setDerivedStateLoading(true)
-    setDerivedState(null)
-    timelineApi.subjects.getState(subjectId, asOf ? { as_of: asOf } : undefined)
-      .then(({ data, error }) => {
-        if (cancelled) return
-        setDerivedStateLoading(false)
-        if (error || !data) {
-          setDerivedState(null)
-          return
-        }
-        setDerivedState({
-          state: data.state ?? {},
-          last_event_id: data.last_event_id ?? null,
-          event_count: data.event_count ?? 0,
-        })
-      })
-      .catch(() => {
-        if (!cancelled) setDerivedStateLoading(false)
-      })
-    return () => { cancelled = true }
-  }, [subjectId, activeTab, authState.user, asOf])
-
-  const fetchSubjectDocumentCount = useCallback(async () => {
-    const { data, error } = await timelineApi.documents.listBySubject(subjectId)
-    if (!error && Array.isArray(data)) setSubjectDocumentCount(data.length)
-    else setSubjectDocumentCount(0)
-  }, [subjectId])
-
-  useEffect(() => {
-    if (activeTab !== 'documents' || !subjectId || !authState.user || subjectDocumentCount !== null) return
-    fetchSubjectDocumentCount()
-  }, [activeTab, subjectId, authState.user, subjectDocumentCount, fetchSubjectDocumentCount])
-
-  const fetchSubject = async () => {
+  const fetchSubject = useCallback(async () => {
     setLoading(true)
     setError(null)
 
     try {
       // Fetch subject details
-      const { data: subjectData, error: subjectError } = await timelineApi.subjects.get(
-        subjectId
-      )
+      const { data: subjectData, error: subjectError } = await timelineApi.subjects.get(subjectId)
 
       if (subjectError) {
         // @ts-expect-error - openapi-fetch error handling
@@ -219,7 +207,7 @@ export function SubjectDetailPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [subjectId])
 
   const fetchEvents = useCallback(async () => {
     try {
@@ -276,33 +264,103 @@ export function SubjectDetailPage() {
       setError('An unexpected error occurred')
       console.error('Error:', err)
     }
-  }, [subjectId, currentPage, filterEventType, filterDateFrom, filterDateTo])
+  }, [
+    subjectId,
+    currentPage,
+    filterEventType,
+    filterDateFrom,
+    filterDateTo,
+    setEventsAndDocumentCounts,
+  ])
 
-  // Shared: fetch full details and document counts for a page of list items
-  const setEventsAndDocumentCounts = useCallback(async (pageItems: EventListResponse[]) => {
-    const fullEvents = await Promise.all(
-      pageItems.map(async (item: EventListResponse) => {
-        const { data } = await timelineApi.events.get(item.id)
-        return data
+  useEffect(() => {
+    if (authState.user) {
+      fetchSubject()
+    }
+  }, [authState.user, fetchSubject])
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: subjectId is the trigger; moving to another subject is what clears the count.
+  useEffect(() => {
+    setSubjectDocumentCount(null)
+  }, [subjectId])
+
+  // Sync filter state from URL (e.g. back/forward or shared link)
+  useEffect(() => {
+    setFilterEventType(searchEventType ?? '')
+    setFilterDateFrom(searchFrom ?? '')
+    setFilterDateTo(searchTo ?? '')
+  }, [searchEventType, searchFrom, searchTo])
+
+  // Reset to first page when filters change
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the filters are the trigger; a change to them is what resets the page.
+  useEffect(() => {
+    setCurrentPage(0)
+  }, [filterEventType, filterDateFrom, filterDateTo])
+
+  // Fetch events when page or filters change
+  useEffect(() => {
+    if (authState.user && subject) {
+      fetchEvents()
+    }
+  }, [authState.user, subject, fetchEvents])
+
+  // Deep-link: open event drawer when URL has event_id
+  useEffect(() => {
+    if (!eventIdFromUrl || !authState.user) return
+    const inPage = events.find((e) => e.id === eventIdFromUrl)
+    if (inPage) {
+      setEventDrawerEvent(inPage)
+      return
+    }
+    let cancelled = false
+    timelineApi.events.get(eventIdFromUrl).then(({ data }) => {
+      if (!cancelled && data) setEventDrawerEvent(data as EventResponse)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [eventIdFromUrl, authState.user, events])
+
+  // Fetch derived state when State tab is active (and when asOf changes)
+  useEffect(() => {
+    if (activeTab !== 'state' || !authState.user) return
+    let cancelled = false
+    setDerivedStateLoading(true)
+    setDerivedState(null)
+    timelineApi.subjects
+      .getState(subjectId, asOf ? { as_of: asOf } : undefined)
+      .then(({ data, error }) => {
+        if (cancelled) return
+        setDerivedStateLoading(false)
+        if (error || !data) {
+          setDerivedState(null)
+          return
+        }
+        setDerivedState({
+          state: data.state ?? {},
+          last_event_id: data.last_event_id ?? null,
+          event_count: data.event_count ?? 0,
+        })
       })
-    )
-    setEvents(fullEvents.filter((e): e is EventResponse => e != null))
-    const documentPromises = pageItems.map(async (item: EventListResponse) => {
-      try {
-        const { data: docs, error } = await timelineApi.documents.listByEvent(item.id)
-        if (error) return { eventId: item.id, count: 0 }
-        return { eventId: item.id, count: Array.isArray(docs) ? docs.length : 0 }
-      } catch {
-        return { eventId: item.id, count: 0 }
-      }
-    })
-    const documentResults = await Promise.all(documentPromises)
-    const counts: Record<string, number> = {}
-    documentResults.forEach(({ eventId, count }: { eventId: string; count: number }) => {
-      counts[eventId] = count
-    })
-    setDocumentCounts(counts)
-  }, [])
+      .catch(() => {
+        if (!cancelled) setDerivedStateLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [subjectId, activeTab, authState.user, asOf])
+
+  const fetchSubjectDocumentCount = useCallback(async () => {
+    const { data, error } = await timelineApi.documents.listBySubject(subjectId)
+    if (!error && Array.isArray(data)) setSubjectDocumentCount(data.length)
+    else setSubjectDocumentCount(0)
+  }, [subjectId])
+
+  useEffect(() => {
+    if (activeTab !== 'documents' || !subjectId || !authState.user || subjectDocumentCount !== null)
+      return
+    fetchSubjectDocumentCount()
+  }, [activeTab, subjectId, authState.user, subjectDocumentCount, fetchSubjectDocumentCount])
 
   const goToPage = (page: number) => {
     if (page < 0) return
@@ -339,7 +397,7 @@ export function SubjectDetailPage() {
       if (error) {
         const display = getApiErrorDisplay(
           { error, status },
-          status === 403 ? 'Access denied' : 'Export failed'
+          status === 403 ? 'Access denied' : 'Export failed',
         )
         setExportError(display.message)
         return
@@ -354,10 +412,7 @@ export function SubjectDetailPage() {
       a.click()
       URL.revokeObjectURL(url)
     } catch (err) {
-      const display = getApiErrorDisplay(
-        { error: err },
-        'Export failed'
-      )
+      const display = getApiErrorDisplay({ error: err }, 'Export failed')
       setExportError(display.message)
     } finally {
       setExportLoading(false)
@@ -376,7 +431,7 @@ export function SubjectDetailPage() {
       if (error) {
         const display = getApiErrorDisplay(
           { error, status },
-          status === 403 ? 'Access denied' : 'Erasure failed'
+          status === 403 ? 'Access denied' : 'Erasure failed',
         )
         setErasureError(display.message)
         setErasureLoading(false)
@@ -385,10 +440,7 @@ export function SubjectDetailPage() {
       setShowErasureModal(false)
       navigate({ to: '/subjects' })
     } catch (err) {
-      const display = getApiErrorDisplay(
-        { error: err },
-        'Erasure failed'
-      )
+      const display = getApiErrorDisplay({ error: err }, 'Erasure failed')
       setErasureError(display.message)
     } finally {
       setErasureLoading(false)
@@ -452,26 +504,16 @@ export function SubjectDetailPage() {
           <div className="w-16 h-16 rounded-none bg-red-100 dark:bg-red-900/20 flex items-center justify-center mx-auto mb-4">
             <AlertCircle className="w-8 h-8 text-red-600 dark:text-red-400" />
           </div>
-          <h3 className="text-lg font-semibold text-foreground mb-2">
-            Unable to Load Subject
-          </h3>
+          <h3 className="text-lg font-semibold text-foreground mb-2">Unable to Load Subject</h3>
           <p className="text-muted-foreground mb-6">
             {error || 'Subject not found'}. Please check your connection and try again.
           </p>
           <div className="flex items-center justify-center gap-3">
-            <Button
-              onClick={fetchSubject}
-              variant="primary"
-              size="sm"
-            >
+            <Button onClick={fetchSubject} variant="primary" size="sm">
               <LoadingIcon />
               Retry
             </Button>
-            <Button
-              onClick={() => navigate({ to: '/subjects' })}
-              variant="ghost"
-              size="sm"
-            >
+            <Button onClick={() => navigate({ to: '/subjects' })} variant="ghost" size="sm">
               Back to Subjects
             </Button>
           </div>
@@ -498,7 +540,11 @@ export function SubjectDetailPage() {
         onOpenChange={(open) => {
           if (!open) {
             setEventDrawerEvent(null)
-            navigate({ to: '/subjects/$subjectId', params: { subjectId }, search: searchFor({ tab: activeTab, event_id: undefined }) })
+            navigate({
+              to: '/subjects/$subjectId',
+              params: { subjectId },
+              search: searchFor({ tab: activeTab, event_id: undefined }),
+            })
           }
         }}
       >
@@ -508,7 +554,11 @@ export function SubjectDetailPage() {
               event={eventDrawerEvent}
               onClose={() => {
                 setEventDrawerEvent(null)
-                navigate({ to: '/subjects/$subjectId', params: { subjectId }, search: searchFor({ tab: activeTab, event_id: undefined }) })
+                navigate({
+                  to: '/subjects/$subjectId',
+                  params: { subjectId },
+                  search: searchFor({ tab: activeTab, event_id: undefined }),
+                })
               }}
               className="border-0 min-h-full"
             />
@@ -550,15 +600,15 @@ export function SubjectDetailPage() {
               )}
               <div className="flex items-center gap-1">
                 <Calendar className="w-3 h-3" />
-                <span>{totalEvents} event{totalEvents !== 1 ? 's' : ''}</span>
+                <span>
+                  {totalEvents} event{totalEvents !== 1 ? 's' : ''}
+                </span>
               </div>
             </div>
           </div>
           <div className="text-right">
             <p className="text-xs text-muted-foreground">Total Blocks</p>
-            <p className="text-2xl font-bold text-foreground">
-              {totalEvents}
-            </p>
+            <p className="text-2xl font-bold text-foreground">{totalEvents}</p>
           </div>
         </div>
 
@@ -574,17 +624,8 @@ export function SubjectDetailPage() {
               Verify Chain
             </Button>
             {hasExportAccess !== false && (
-              <Button
-                onClick={handleExport}
-                disabled={exportLoading}
-                variant="outline"
-                size="sm"
-              >
-                {exportLoading ? (
-                  <LoadingIcon size="sm" />
-                ) : (
-                  <Download className="w-4 h-4" />
-                )}
+              <Button onClick={handleExport} disabled={exportLoading} variant="outline" size="sm">
+                {exportLoading ? <LoadingIcon size="sm" /> : <Download className="w-4 h-4" />}
                 Export
               </Button>
             )}
@@ -600,7 +641,14 @@ export function SubjectDetailPage() {
       {/* Tabs — persisted in URL so reload keeps tab */}
       <div className="flex gap-1 mb-3 border-b border-border/40">
         <button
-          onClick={() => navigate({ to: '/subjects/$subjectId', params: { subjectId }, search: searchFor({ tab: 'events', event_id: undefined }) })}
+          type="button"
+          onClick={() =>
+            navigate({
+              to: '/subjects/$subjectId',
+              params: { subjectId },
+              search: searchFor({ tab: 'events', event_id: undefined }),
+            })
+          }
           className={`px-3 py-2 text-xs font-medium transition-colors border-b-2 rounded-none flex items-center gap-2 ${
             activeTab === 'events'
               ? 'bg-muted/40 border-primary text-foreground'
@@ -611,7 +659,14 @@ export function SubjectDetailPage() {
           Event Chain
         </button>
         <button
-          onClick={() => navigate({ to: '/subjects/$subjectId', params: { subjectId }, search: searchFor({ tab: 'documents', event_id: undefined }) })}
+          type="button"
+          onClick={() =>
+            navigate({
+              to: '/subjects/$subjectId',
+              params: { subjectId },
+              search: searchFor({ tab: 'documents', event_id: undefined }),
+            })
+          }
           className={`px-3 py-2 text-xs font-medium transition-colors border-b-2 rounded-none flex items-center gap-2 ${
             activeTab === 'documents'
               ? 'bg-muted/40 border-primary text-foreground'
@@ -622,7 +677,14 @@ export function SubjectDetailPage() {
           Documents
         </button>
         <button
-          onClick={() => navigate({ to: '/subjects/$subjectId', params: { subjectId }, search: searchFor({ tab: 'state', event_id: undefined }) })}
+          type="button"
+          onClick={() =>
+            navigate({
+              to: '/subjects/$subjectId',
+              params: { subjectId },
+              search: searchFor({ tab: 'state', event_id: undefined }),
+            })
+          }
           className={`px-3 py-2 text-xs font-medium transition-colors border-b-2 rounded-none flex items-center gap-2 ${
             activeTab === 'state'
               ? 'bg-muted/40 border-primary text-foreground'
@@ -633,7 +695,14 @@ export function SubjectDetailPage() {
           State
         </button>
         <button
-          onClick={() => navigate({ to: '/subjects/$subjectId', params: { subjectId }, search: searchFor({ tab: 'relationships', event_id: undefined }) })}
+          type="button"
+          onClick={() =>
+            navigate({
+              to: '/subjects/$subjectId',
+              params: { subjectId },
+              search: searchFor({ tab: 'relationships', event_id: undefined }),
+            })
+          }
           className={`px-3 py-2 text-xs font-medium transition-colors border-b-2 rounded-none flex items-center gap-2 ${
             activeTab === 'relationships'
               ? 'bg-muted/40 border-primary text-foreground'
@@ -644,7 +713,14 @@ export function SubjectDetailPage() {
           Relationships
         </button>
         <button
-          onClick={() => navigate({ to: '/subjects/$subjectId', params: { subjectId }, search: searchFor({ tab: 'integrity', event_id: undefined }) })}
+          type="button"
+          onClick={() =>
+            navigate({
+              to: '/subjects/$subjectId',
+              params: { subjectId },
+              search: searchFor({ tab: 'integrity', event_id: undefined }),
+            })
+          }
           className={`px-3 py-2 text-xs font-medium transition-colors border-b-2 rounded-none flex items-center gap-2 ${
             activeTab === 'integrity'
               ? 'bg-muted/40 border-primary text-foreground'
@@ -681,17 +757,27 @@ export function SubjectDetailPage() {
           {/* Event filters: type + date range. Integrity filter deferred until list API supports it. */}
           <div className="mb-3 flex flex-wrap items-center gap-3 rounded-none border border-border/40 bg-muted/10 px-3 py-2">
             <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-              <label className="text-sm font-medium text-foreground/90 whitespace-nowrap">
+              <label
+                htmlFor={eventTypeId}
+                className="text-sm font-medium text-foreground/90 whitespace-nowrap"
+              >
                 Event type:
               </label>
               <SingleSelectCombobox
+                id={eventTypeId}
                 value={filterEventType}
                 onValueChange={(value) => {
                   setFilterEventType(value)
                   navigate({
                     to: '/subjects/$subjectId',
                     params: { subjectId },
-                    search: { tab: 'events', event_id: eventIdFromUrl, event_type: value, from: filterDateFrom, to: filterDateTo },
+                    search: {
+                      tab: 'events',
+                      event_id: eventIdFromUrl,
+                      event_type: value,
+                      from: filterDateFrom,
+                      to: filterDateTo,
+                    },
                   })
                 }}
                 options={[
@@ -704,10 +790,14 @@ export function SubjectDetailPage() {
               />
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <label className="text-sm font-medium text-foreground/90 whitespace-nowrap">
+              <label
+                htmlFor={fromId}
+                className="text-sm font-medium text-foreground/90 whitespace-nowrap"
+              >
                 From:
               </label>
               <input
+                id={fromId}
                 type="date"
                 value={filterDateFrom}
                 onChange={(e) => {
@@ -716,17 +806,27 @@ export function SubjectDetailPage() {
                   navigate({
                     to: '/subjects/$subjectId',
                     params: { subjectId },
-                    search: { tab: 'events', event_id: eventIdFromUrl, event_type: filterEventType, from: v, to: filterDateTo },
+                    search: {
+                      tab: 'events',
+                      event_id: eventIdFromUrl,
+                      event_type: filterEventType,
+                      from: v,
+                      to: filterDateTo,
+                    },
                   })
                 }}
                 className="h-8 rounded-none border border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
               />
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <label className="text-sm font-medium text-foreground/90 whitespace-nowrap">
+              <label
+                htmlFor={toId}
+                className="text-sm font-medium text-foreground/90 whitespace-nowrap"
+              >
                 To:
               </label>
               <input
+                id={toId}
                 type="date"
                 value={filterDateTo}
                 onChange={(e) => {
@@ -735,7 +835,13 @@ export function SubjectDetailPage() {
                   navigate({
                     to: '/subjects/$subjectId',
                     params: { subjectId },
-                    search: { tab: 'events', event_id: eventIdFromUrl, event_type: filterEventType, from: filterDateFrom, to: v },
+                    search: {
+                      tab: 'events',
+                      event_id: eventIdFromUrl,
+                      event_type: filterEventType,
+                      from: filterDateFrom,
+                      to: v,
+                    },
                   })
                 }}
                 className="h-8 rounded-none border border-border bg-background px-2 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20"
@@ -753,7 +859,13 @@ export function SubjectDetailPage() {
                         navigate({
                           to: '/subjects/$subjectId',
                           params: { subjectId },
-                          search: { tab: 'events', event_id: eventIdFromUrl, event_type: '', from: filterDateFrom, to: filterDateTo },
+                          search: {
+                            tab: 'events',
+                            event_id: eventIdFromUrl,
+                            event_type: '',
+                            from: filterDateFrom,
+                            to: filterDateTo,
+                          },
                         })
                       }}
                       className="text-muted-foreground hover:text-foreground"
@@ -773,7 +885,13 @@ export function SubjectDetailPage() {
                         navigate({
                           to: '/subjects/$subjectId',
                           params: { subjectId },
-                          search: { tab: 'events', event_id: eventIdFromUrl, event_type: filterEventType, from: '', to: filterDateTo },
+                          search: {
+                            tab: 'events',
+                            event_id: eventIdFromUrl,
+                            event_type: filterEventType,
+                            from: '',
+                            to: filterDateTo,
+                          },
                         })
                       }}
                       className="text-muted-foreground hover:text-foreground"
@@ -793,7 +911,13 @@ export function SubjectDetailPage() {
                         navigate({
                           to: '/subjects/$subjectId',
                           params: { subjectId },
-                          search: { tab: 'events', event_id: eventIdFromUrl, event_type: filterEventType, from: filterDateFrom, to: '' },
+                          search: {
+                            tab: 'events',
+                            event_id: eventIdFromUrl,
+                            event_type: filterEventType,
+                            from: filterDateFrom,
+                            to: '',
+                          },
                         })
                       }}
                       className="text-muted-foreground hover:text-foreground"
@@ -827,9 +951,13 @@ export function SubjectDetailPage() {
                 totalEvents={totalEvents}
                 pageOffset={currentPage * PAGE_SIZE}
                 onEventClick={(ev) => {
-                setEventDrawerEvent(ev)
-                navigate({ to: '/subjects/$subjectId', params: { subjectId }, search: searchFor({ tab: 'events', event_id: ev.id }) })
-              }}
+                  setEventDrawerEvent(ev)
+                  navigate({
+                    to: '/subjects/$subjectId',
+                    params: { subjectId },
+                    search: searchFor({ tab: 'events', event_id: ev.id }),
+                  })
+                }}
               />
 
               {/* Pagination Controls */}
@@ -851,7 +979,9 @@ export function SubjectDetailPage() {
                       Previous
                     </Button>
                     <span className="text-xs text-muted-foreground px-2">
-                      {totalPages !== null ? `Page ${currentPage + 1} of ${totalPages}` : `Page ${currentPage + 1}`}
+                      {totalPages !== null
+                        ? `Page ${currentPage + 1} of ${totalPages}`
+                        : `Page ${currentPage + 1}`}
                     </span>
                     <Button
                       onClick={() => goToPage(currentPage + 1)}
@@ -994,12 +1124,7 @@ export function SubjectDetailPage() {
               />
             </label>
             {asOf && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setAsOf(null)}
-              >
+              <Button type="button" variant="ghost" size="sm" onClick={() => setAsOf(null)}>
                 Clear
               </Button>
             )}
@@ -1066,24 +1191,32 @@ export function SubjectDetailPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {integrityEpochs.slice(0, INTEGRITY_TAB_EPOCHS_LIMIT).map((epoch: IntegrityEpochItem) => (
-                      <tr key={epoch.id} className="border-b border-border/30 hover:bg-muted/20">
-                        <td className="py-2 pr-2 font-mono">{epoch.epoch_number}</td>
-                        <td className="py-2 pr-2">
-                          <StatusBadge
+                    {integrityEpochs
+                      .slice(0, INTEGRITY_TAB_EPOCHS_LIMIT)
+                      .map((epoch: IntegrityEpochItem) => (
+                        <tr key={epoch.id} className="border-b border-border/30 hover:bg-muted/20">
+                          <td className="py-2 pr-2 font-mono">{epoch.epoch_number}</td>
+                          <td className="py-2 pr-2">
+                            <StatusBadge
                               status={
-                                epoch.status === 'Broken' ? 'broken' : epoch.status === 'Sealed' || epoch.status === 'Repaired' ? 'valid' : 'unknown'
+                                epoch.status === 'Broken'
+                                  ? 'broken'
+                                  : epoch.status === 'Sealed' || epoch.status === 'Repaired'
+                                    ? 'valid'
+                                    : 'unknown'
                               }
                               label={epoch.status}
                             />
-                        </td>
-                        <td className="py-2 pr-2">{epoch.event_count}</td>
-                        <td className="py-2 pr-2 text-muted-foreground">{formatFullDateTime(epoch.opened_at)}</td>
-                        <td className="py-2 pr-2 text-muted-foreground">
-                          {epoch.sealed_at ? formatFullDateTime(epoch.sealed_at) : '—'}
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td className="py-2 pr-2">{epoch.event_count}</td>
+                          <td className="py-2 pr-2 text-muted-foreground">
+                            {formatFullDateTime(epoch.opened_at)}
+                          </td>
+                          <td className="py-2 pr-2 text-muted-foreground">
+                            {epoch.sealed_at ? formatFullDateTime(epoch.sealed_at) : '—'}
+                          </td>
+                        </tr>
+                      ))}
                   </tbody>
                 </table>
               </div>
@@ -1139,11 +1272,7 @@ export function SubjectDetailPage() {
             >
               Cancel
             </Button>
-            <Button
-              variant="destructive"
-              onClick={handleErasureConfirm}
-              disabled={erasureLoading}
-            >
+            <Button variant="destructive" onClick={handleErasureConfirm} disabled={erasureLoading}>
               {erasureLoading ? (
                 <>
                   <LoadingIcon size="sm" />
@@ -1176,7 +1305,9 @@ export function SubjectDetailPage() {
             />
             <div>
               <span className="text-sm font-medium">Anonymize</span>
-              <p className="text-xs text-muted-foreground">Redact PII; keep subject and event structure.</p>
+              <p className="text-xs text-muted-foreground">
+                Redact PII; keep subject and event structure.
+              </p>
             </div>
           </label>
           <label className="flex items-start gap-3 cursor-pointer">
@@ -1190,7 +1321,9 @@ export function SubjectDetailPage() {
             />
             <div>
               <span className="text-sm font-medium">Delete</span>
-              <p className="text-xs text-muted-foreground">Remove subject and associated documents.</p>
+              <p className="text-xs text-muted-foreground">
+                Remove subject and associated documents.
+              </p>
             </div>
           </label>
         </div>

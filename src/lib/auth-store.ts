@@ -1,7 +1,13 @@
 import { Store } from '@tanstack/store'
-import { timelineApi, setAuthToken, getAuthToken, setTenantId, refreshAccessToken } from './api-client'
-import { getApiErrorDisplay } from './api-utils'
 import type { UserResponse } from '@/lib/types'
+import {
+  getAuthToken,
+  refreshAccessToken,
+  setAuthToken,
+  setTenantId,
+  timelineApi,
+} from './api-client'
+import { getApiErrorDisplay } from './api-utils'
 
 interface AuthState {
   user: UserResponse | null
@@ -20,16 +26,28 @@ const initialState: AuthState = {
 export const authStore = new Store(initialState)
 
 export const authActions = {
-  async login(username: string, password: string, tenant_code: string) {
+  /** Which organisations can this email sign in to? Empty means unknown email. */
+  async organisationsForEmail(email: string) {
+    const response = await timelineApi.auth.organisations(email.trim())
+    if (response.error) return []
+    return response.data?.organisations ?? []
+  },
+
+  /**
+   * Sign in with email and password. Pass `tenant_id` only when the email belongs to
+   * several organisations; for the common single-organisation case, omit it and the
+   * user is never asked.
+   */
+  async login(email: string, password: string, tenant_id?: string) {
     authStore.setState((state) => ({ ...state, isLoading: true, error: null }))
 
     try {
-      const response = await timelineApi.auth.login(username, password, tenant_code)
+      const response = await timelineApi.auth.login(email, password, tenant_id)
 
       if (response.error) {
         const display = getApiErrorDisplay(
           { error: response.error, status: response.response?.status },
-          'Invalid credentials'
+          'Invalid credentials',
         )
         throw new Error(display.message)
       }
@@ -39,7 +57,7 @@ export const authActions = {
       const { access_token } = data
       setAuthToken(access_token)
 
-      const userResponse = await timelineApi.users.me() as {
+      const userResponse = (await timelineApi.users.me()) as {
         data?: UserResponse
         error?: unknown
         response?: { status?: number }
@@ -50,7 +68,7 @@ export const authActions = {
         setTenantId(null)
         const display = getApiErrorDisplay(
           { error: userResponse.error, status: userResponse.response?.status },
-          'Failed to fetch user info'
+          'Failed to fetch user info',
         )
         throw new Error(display.message)
       }
@@ -75,8 +93,7 @@ export const authActions = {
     } catch (error) {
       setAuthToken(null)
       setTenantId(null)
-      const errorMessage =
-        error instanceof Error ? error.message : 'Login failed'
+      const errorMessage = error instanceof Error ? error.message : 'Login failed'
       authStore.setState({
         user: null,
         token: null,
@@ -103,8 +120,7 @@ export const authActions = {
       authStore.setState((state) => ({ ...state, isLoading: false }))
       return response.data
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : 'Tenant creation failed'
+      const errorMessage = error instanceof Error ? error.message : 'Tenant creation failed'
       authStore.setState((state) => ({
         ...state,
         isLoading: false,
@@ -178,7 +194,7 @@ export const authActions = {
         isLoading: false,
         error: null,
       }))
-    } catch (error) {
+    } catch {
       setAuthToken(null)
       setTenantId(null)
       authStore.setState({

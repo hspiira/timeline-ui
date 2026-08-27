@@ -1,14 +1,13 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { requireAuthBeforeLoad } from '@/lib/route-auth'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { timelineApi } from '@/lib/api-client'
-import { getTenantId } from '@/lib/api-client'
-import { useRequireAuth } from '@/hooks/useRequireAuth'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { AlertCircle } from 'lucide-react'
+import { useId, useState } from 'react'
 import { Breadcrumbs } from '@/components/ui/Breadcrumbs'
 import { Button } from '@/components/ui/button'
-import { useState } from 'react'
-import { AlertCircle } from 'lucide-react'
+import { useRequireAuth } from '@/hooks/useRequireAuth'
+import { getTenantId, timelineApi } from '@/lib/api-client'
 import { getApiErrorDisplay } from '@/lib/api-utils'
+import { requireAuthBeforeLoad } from '@/lib/route-auth'
 
 export const Route = createFileRoute('/projections/new')({
   beforeLoad: () => {
@@ -18,6 +17,9 @@ export const Route = createFileRoute('/projections/new')({
 })
 
 function NewProjectionPage() {
+  const nameId = useId()
+  const subjectTypeOptionalId = useId()
+  const versionId = useId()
   useRequireAuth()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -50,13 +52,15 @@ function NewProjectionPage() {
           error: createMutation.error as { detail?: string },
           status: (createMutation.error as { response?: { status?: number } })?.response?.status,
         },
-        'Failed to create projection'
+        'Failed to create projection',
       ).message
     : null
 
   if (!tenantId) {
     return (
-      <div className="p-4 text-sm text-muted-foreground">Select a tenant to create a projection.</div>
+      <div className="p-4 text-sm text-muted-foreground">
+        Select a tenant to create a projection.
+      </div>
     )
   }
 
@@ -75,8 +79,11 @@ function NewProjectionPage() {
           className="space-y-4"
         >
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1">Name *</label>
+            <label htmlFor={nameId} className="block text-sm font-medium text-foreground mb-1">
+              Name *
+            </label>
             <input
+              id={nameId}
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -86,8 +93,11 @@ function NewProjectionPage() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1">Version *</label>
+            <label htmlFor={versionId} className="block text-sm font-medium text-foreground mb-1">
+              Version *
+            </label>
             <input
+              id={versionId}
               type="number"
               min={1}
               value={version}
@@ -96,8 +106,14 @@ function NewProjectionPage() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1">Subject type (optional)</label>
+            <label
+              htmlFor={subjectTypeOptionalId}
+              className="block text-sm font-medium text-foreground mb-1"
+            >
+              Subject type (optional)
+            </label>
             <input
+              id={subjectTypeOptionalId}
               type="text"
               value={subjectType}
               onChange={(e) => setSubjectType(e.target.value)}
@@ -115,7 +131,11 @@ function NewProjectionPage() {
             <Button type="submit" disabled={createMutation.isPending || !name.trim()}>
               Create
             </Button>
-            <Button type="button" variant="outline" onClick={() => navigate({ to: '/projections' })}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => navigate({ to: '/projections' })}
+            >
               Cancel
             </Button>
           </div>

@@ -1,13 +1,14 @@
-import { createFileRoute, useNavigate, Link } from '@tanstack/react-router'
-import { useState } from 'react'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useStore } from '@tanstack/react-store'
 import { ArrowLeft, CheckCircle, Copy, KeyRound } from 'lucide-react'
-import { authStore, authActions } from '@/lib/auth-store'
+import { useId, useState } from 'react'
+import { AuthCard } from '@/components/auth/AuthCard'
+import { AuthPageLayout } from '@/components/auth/AuthPageLayout'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { authActions, authStore } from '@/lib/auth-store'
 import { formatFullDateTime } from '@/lib/format-date'
 import { useRedirectIfAuthenticated } from '@/lib/hooks'
-import { AuthPageLayout } from '@/components/auth/AuthPageLayout'
-import { Input } from '@/components/ui/input'
-import { Button } from '@/components/ui/button'
 
 export const Route = createFileRoute('/register')({
   component: RegisterTenantPage,
@@ -25,6 +26,8 @@ interface TenantCreationResult {
 }
 
 function RegisterTenantPage() {
+  const tenantCodeId = useId()
+  const tenantNameId = useId()
   const navigate = useNavigate()
   const authState = useStore(authStore)
   const [tenantCode, setTenantCode] = useState('')
@@ -65,7 +68,7 @@ function RegisterTenantPage() {
       if (token) {
         navigate({
           to: '/set-password',
-          search: { token, tenant: createdTenant.tenant_code },
+          search: { token },
         })
       } else {
         window.location.href = createdTenant.set_password_url
@@ -79,7 +82,7 @@ function RegisterTenantPage() {
     if (createdTenant) {
       navigate({
         to: '/login',
-        search: { tenant: createdTenant.tenant_code, redirect: undefined, sessionExpired: false },
+        search: {},
       })
     }
   }
@@ -98,208 +101,185 @@ function RegisterTenantPage() {
 
     return (
       <AuthPageLayout>
-        <div className="w-full max-w-md py-12">
-          <div className="bg-card/80 backdrop-blur-md border border-white/10 shadow-xl rounded-lg p-8">
-            <div className="flex justify-center mb-6">
-              <img src="/logo.svg" alt="Timeline" className="w-16 h-16" />
-            </div>
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-none bg-primary/10 flex items-center justify-center shrink-0">
-                <CheckCircle className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <h1 className="text-lg font-bold text-foreground">Tenant created</h1>
-                <p className="text-sm text-muted-foreground">{createdTenant.tenant_name}</p>
-              </div>
-            </div>
-            <p className="text-sm text-muted-foreground mb-4">
-              Open the link below to set your admin password, then log in.
+        <AuthCard>
+          <div className="flex flex-col items-center text-center">
+            <CheckCircle className="h-5 w-5 text-status-ok" aria-hidden />
+            <h1 className="mt-3 font-display text-xl font-semibold tracking-tight text-foreground">
+              Tenant created
+            </h1>
+            <p className="mt-1 max-w-full truncate text-sm text-muted-foreground">
+              {createdTenant.tenant_name}
             </p>
-            <dl className="space-y-0 mb-6">
-              <div className="flex items-baseline gap-4 py-3 border-b border-border">
-                <dt className="text-sm text-muted-foreground shrink-0 w-28">Tenant code</dt>
-                <dd className="text-sm font-mono text-foreground min-w-0">{createdTenant.tenant_code}</dd>
+          </div>
+          <dl className="mt-8 divide-y divide-border">
+            <div className="flex items-baseline gap-4 py-3">
+              <dt className="w-28 shrink-0 text-sm text-muted-foreground">Tenant code</dt>
+              <dd className="min-w-0 font-mono text-sm text-foreground">
+                {createdTenant.tenant_code}
+              </dd>
+            </div>
+            <div className="flex items-baseline gap-4 py-3">
+              <dt className="w-28 shrink-0 text-sm text-muted-foreground">Username</dt>
+              <dd className="min-w-0 font-mono text-sm text-foreground">
+                {createdTenant.admin_username}
+              </dd>
+            </div>
+            <div className="flex items-baseline gap-4 py-3">
+              <dt className="w-28 shrink-0 text-sm text-muted-foreground">Email</dt>
+              <dd className="min-w-0 break-all text-sm text-foreground">
+                {createdTenant.admin_email}
+              </dd>
+            </div>
+            {expiresAt && (
+              <div className="flex items-baseline gap-4 py-3">
+                <dt className="w-28 shrink-0 text-sm text-muted-foreground">Link expires</dt>
+                <dd className="text-xs text-muted-foreground">{expiresAt}</dd>
               </div>
-              <div className="flex items-baseline gap-4 py-3 border-b border-border">
-                <dt className="text-sm text-muted-foreground shrink-0 w-28">Username</dt>
-                <dd className="text-sm font-mono text-foreground min-w-0">{createdTenant.admin_username}</dd>
-              </div>
-              <div className="flex items-baseline gap-4 py-3 border-b border-border">
-                <dt className="text-sm text-muted-foreground shrink-0 w-28">Email</dt>
-                <dd className="text-sm text-foreground min-w-0 break-all">{createdTenant.admin_email}</dd>
-              </div>
-              {expiresAt && (
-                <div className="flex items-baseline gap-4 py-3 border-b border-border">
-                  <dt className="text-sm text-muted-foreground shrink-0 w-28">Link expires</dt>
-                  <dd className="text-xs text-muted-foreground">{expiresAt}</dd>
-                </div>
-              )}
-            </dl>
-            {setPasswordUrl ? (
-              <>
-                <div className="mb-4">
-                  <span className="text-sm text-muted-foreground">Set-password link</span>
-                  <div className="mt-1 flex gap-2">
-                    <Input
-                      readOnly
-                      value={setPasswordUrl}
-                      className="font-mono text-xs flex-1 bg-muted/50"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      onClick={handleCopyLink}
-                      title={copied ? 'Copied!' : 'Copy link'}
-                      aria-label={copied ? 'Copied!' : 'Copy link'}
-                    >
-                      <Copy className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-                <Button
-                  type="button"
-                  onClick={goToSetPassword}
-                  className="w-full"
-                >
-                  <KeyRound className="w-4 h-4 mr-2" />
-                  Set your password
-                </Button>
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground mb-4">
-                No set-password link was returned. Ensure the backend has <code className="text-xs bg-muted px-1 rounded">SET_PASSWORD_BASE_URL</code> configured.
-              </p>
             )}
-            <p className="text-sm text-muted-foreground mt-6 mb-2">After you’ve set your password:</p>
-            <Button variant="secondary" onClick={goToLogin} className="w-full">
+          </dl>
+          {setPasswordUrl ? (
+            <>
+              <div className="mt-5">
+                <span className="text-sm font-medium text-foreground">Set-password link</span>
+                <div className="mt-1.5 flex gap-2">
+                  <Input
+                    readOnly
+                    value={setPasswordUrl}
+                    className="flex-1 bg-muted/40 font-mono text-xs"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={handleCopyLink}
+                    title={copied ? 'Copied!' : 'Copy link'}
+                    aria-label={copied ? 'Copied!' : 'Copy link'}
+                  >
+                    <Copy className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+              <Button type="button" size="lg" onClick={goToSetPassword} className="mt-4 w-full">
+                <KeyRound className="mr-2 h-4 w-4" />
+                Set your password
+              </Button>
+            </>
+          ) : (
+            <p className="mt-5 bg-muted/40 px-3 py-2.5 text-sm text-muted-foreground">
+              No set-password link was returned. Ensure the backend has{' '}
+              <code className="bg-muted px-1 text-xs">SET_PASSWORD_BASE_URL</code> configured.
+            </p>
+          )}
+
+          <div className="mt-8 flex flex-col items-center gap-4">
+            <Button variant="outline" size="lg" onClick={goToLogin} className="w-full">
               Go to login
             </Button>
-            <div className="mt-6 text-center">
-              <button
-                type="button"
-                onClick={() => {
-                  window.location.href = '/'
-                }}
-                className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-                aria-label="Back to home"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                Back to home
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => {
+                window.location.href = '/'
+              }}
+              className="inline-flex cursor-pointer items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+              aria-label="Back to home"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              Back to home
+            </button>
           </div>
-        </div>
+        </AuthCard>
       </AuthPageLayout>
     )
   }
 
   return (
     <AuthPageLayout>
-      <div className="w-full max-w-md py-12">
-        <div className="bg-card/80 backdrop-blur-md border border-white/10 shadow-xl rounded-lg p-8">
-          {/* Logo */}
-          <div className="flex justify-center mb-6">
-            <img src="/logo.svg" alt="Timeline" className="w-16 h-16" />
+      <AuthCard>
+        {/* Title */}
+        <h1 className="text-center font-display text-xl font-semibold tracking-tight text-foreground">
+          Create tenant
+        </h1>
+
+        {/* Error Message */}
+        {authState.error && (
+          <div className="mt-6 bg-destructive/10 px-3 py-2.5">
+            <p className="text-sm text-destructive">{authState.error}</p>
+          </div>
+        )}
+
+        {/* Register Form */}
+        <form onSubmit={handleSubmit} className="mt-8 space-y-4">
+          <div>
+            <label
+              htmlFor={tenantNameId}
+              className="mb-1.5 block text-sm font-medium text-foreground"
+            >
+              Tenant name
+            </label>
+            <Input
+              id={tenantNameId}
+              type="text"
+              value={tenantName}
+              onChange={(e) => setTenantName(e.target.value)}
+              required
+              placeholder="Acme Corp"
+            />
           </div>
 
-          {/* Title */}
-          <h1 className="text-2xl font-bold text-center mb-2 text-foreground">
-            Create tenant
-          </h1>
-          <p className="text-center text-muted-foreground mb-6">
-            Register your organisation. You’ll set the admin password via a link after creation.
+          <div>
+            <label
+              htmlFor={tenantCodeId}
+              className="mb-1.5 block text-sm font-medium text-foreground"
+            >
+              Tenant code
+            </label>
+            <Input
+              id={tenantCodeId}
+              type="text"
+              value={tenantCode}
+              onChange={(e) =>
+                setTenantCode(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))
+              }
+              required
+              placeholder="acme-corp"
+              className="font-mono"
+              pattern="[a-z0-9\-]+"
+              title="3–15 characters: lowercase letters, numbers, and hyphens only"
+            />
+          </div>
+
+          <Button
+            type="submit"
+            size="lg"
+            disabled={authState.isLoading}
+            isLoading={authState.isLoading}
+            className="w-full"
+          >
+            {authState.isLoading ? 'Creating tenant…' : 'Create tenant'}
+          </Button>
+        </form>
+
+        {/* Bottom links */}
+        <div className="mt-8 flex flex-col items-center gap-2.5 text-center">
+          <p className="text-sm text-muted-foreground">
+            Already have an account?{' '}
+            <Link to="/login" search={{}} className="font-medium text-foreground hover:underline">
+              Sign in
+            </Link>
           </p>
-
-          {/* Error Message */}
-          {authState.error && (
-            <div className="mb-4 p-3 bg-destructive/10 border border-destructive/20 rounded-none">
-              <p className="text-sm text-destructive">{authState.error}</p>
-            </div>
-          )}
-
-          {/* Register Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label
-                htmlFor="tenant-name"
-                className="block text-sm font-medium text-foreground mb-1.5"
-              >
-                Tenant name
-              </label>
-              <Input
-                id="tenant-name"
-                type="text"
-                value={tenantName}
-                onChange={(e) => setTenantName(e.target.value)}
-                required
-                placeholder="Acme Corp"
-              />
-              <p className="mt-1 text-xs text-muted-foreground">
-                Display name for your organisation
-              </p>
-            </div>
-
-            <div>
-              <label
-                htmlFor="tenant-code"
-                className="block text-sm font-medium text-foreground mb-1.5"
-              >
-                Tenant code
-              </label>
-              <Input
-                id="tenant-code"
-                type="text"
-                value={tenantCode}
-                onChange={(e) =>
-                  setTenantCode(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))
-                }
-                required
-                placeholder="acme-corp"
-                pattern="[a-z0-9\-]+"
-                title="3–15 characters: lowercase letters, numbers, and hyphens only"
-              />
-              <p className="mt-1 text-xs text-muted-foreground">
-                e.g. acme-corp · 3–15 characters
-              </p>
-            </div>
-
-            <Button
-              type="submit"
-              disabled={authState.isLoading}
-              isLoading={authState.isLoading}
-              className="w-full"
-            >
-              {authState.isLoading ? 'Creating tenant...' : 'Create tenant'}
-            </Button>
-          </form>
-
-          {/* Bottom links */}
-          <div className="mt-6 flex flex-col items-center gap-3 text-center">
-            <p className="text-sm text-muted-foreground">
-              Already have an account?{' '}
-              <Link
-                to="/login"
-                search={{ tenant: '', redirect: '/', sessionExpired: false }}
-                className="text-foreground font-medium hover:underline"
-              >
-                Sign in
-              </Link>
-            </p>
-            <button
-              type="button"
-              onClick={() => {
-                window.location.href = '/'
-              }}
-              className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-              aria-label="Back to home"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              Back to home
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => {
+              window.location.href = '/'
+            }}
+            className="inline-flex cursor-pointer items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+            aria-label="Back to home"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Back to home
+          </button>
         </div>
-      </div>
+      </AuthCard>
     </AuthPageLayout>
   )
 }

@@ -1,26 +1,27 @@
-import { useState, useEffect, useCallback } from 'react'
-import { useWorkflowEngineContext } from '@/hooks/useWorkflowEngineContext'
-import { useFormSubmit } from '@/hooks/useFormSubmit'
-import type { components } from '@/lib/timeline-api'
-import {
-  createWorkflowWithDefaultTrigger,
-  validateWorkflow,
-  workflowGraphToCreateRequest,
-  updateNode,
-  nodeRegistry,
-  WORKFLOW_TEMPLATES,
-  getWorkflowTemplate,
-  DEFAULT_TRIGGER_NODE_ID,
-} from '@/lib/workflow-builder'
-import type { Workflow } from '@/lib/workflow-builder'
-import { Modal } from '@/components/ui/Modal'
+import { useCallback, useEffect, useId, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { SingleSelectCombobox } from '@/components/ui/combobox'
 import { ErrorAlert } from '@/components/ui/ErrorAlert'
-import { WorkflowBuilderCanvas } from '@/components/workflow-builder/WorkflowBuilderCanvas'
-import { NodePaletteRow } from '@/components/workflow-builder/NodePaletteRow'
+import { Input } from '@/components/ui/input'
+import { Modal } from '@/components/ui/Modal'
 import { NodeConfigPanel } from '@/components/workflow-builder/NodeConfigPanel'
+import { NodePaletteRow } from '@/components/workflow-builder/NodePaletteRow'
+import { WorkflowBuilderCanvas } from '@/components/workflow-builder/WorkflowBuilderCanvas'
+import { useFormSubmit } from '@/hooks/useFormSubmit'
+import { useWorkflowEngineContext } from '@/hooks/useWorkflowEngineContext'
+import type { components } from '@/lib/timeline-api'
+import type { Workflow } from '@/lib/workflow-builder'
+import {
+  createWorkflowWithDefaultTrigger,
+  DEFAULT_TRIGGER_NODE_ID,
+  getWorkflowTemplate,
+  nodeRegistry,
+  toApiActions,
+  updateNode,
+  validateWorkflow,
+  WORKFLOW_TEMPLATES,
+  workflowGraphToCreateRequest,
+} from '@/lib/workflow-builder'
 
 type WorkflowCreate = components['schemas']['WorkflowCreateRequest']
 
@@ -37,10 +38,14 @@ export function WorkflowCreateModalGraph({
   onSubmit,
   title = 'Create workflow',
 }: WorkflowCreateModalProps) {
+  const descriptionOptionalId = useId()
+  const startFromId = useId()
+  const whenThisWorkflowId = useId()
+  const workflowNameId = useId()
   const workflowContext = useWorkflowEngineContext()
   const { eventTypes, loading: loadingEventTypes } = workflowContext
   const [workflow, setWorkflow] = useState<Workflow>(() =>
-    createWorkflowWithDefaultTrigger(WORKFLOW_ID_PLACEHOLDER, '')
+    createWorkflowWithDefaultTrigger(WORKFLOW_ID_PLACEHOLDER, ''),
   )
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -52,7 +57,10 @@ export function WorkflowCreateModalGraph({
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null)
   const { execute, loading, error, setError } = useFormSubmit()
 
-  const triggerNode = workflow.nodes.find((n) => nodeRegistry.getOptional(n.type)?.isTrigger)
+  const triggerNode = useMemo(
+    () => workflow.nodes.find((n) => nodeRegistry.getOptional(n.type)?.isTrigger),
+    [workflow.nodes],
+  )
   const selectedTemplate = selectedTemplateId ? getWorkflowTemplate(selectedTemplateId) : null
 
   // Attio-style: when there is only the trigger node, auto-select it so the user starts by specifying the trigger
@@ -67,7 +75,7 @@ export function WorkflowCreateModalGraph({
       const eventType = (triggerNode.configuration?.eventType as string) ?? ''
       setTriggerEventType(eventType)
     }
-  }, [triggerNode?.id])
+  }, [triggerNode])
 
   const handleTriggerEventTypeChange = useCallback(
     (value: string) => {
@@ -77,11 +85,11 @@ export function WorkflowCreateModalGraph({
         setWorkflow((prev) =>
           updateNode(prev, triggerNode.id, {
             configuration: { ...triggerNode.configuration, eventType: value },
-          })
+          }),
         )
       }
     },
-    [triggerNode]
+    [triggerNode],
   )
 
   const validation = validateWorkflow({ ...workflow, name })
@@ -121,14 +129,22 @@ export function WorkflowCreateModalGraph({
       return
     }
 
+    const { actions, errors: actionErrors } = toApiActions(payloadFromGraph.actions)
+    if (actionErrors.length > 0) {
+      setFieldErrors((prev) => ({ ...prev, steps: actionErrors[0] }))
+      return
+    }
+
     const payload: WorkflowCreate = {
       name: name.trim(),
       description: description.trim() || undefined,
       trigger_event_type: triggerEventTypeFinal,
-      actions: payloadFromGraph.actions,
+      actions,
       execution_order: 0,
       is_active: isActive,
-      ...(payloadFromGraph.trigger_conditions !== undefined && { trigger_conditions: payloadFromGraph.trigger_conditions }),
+      ...(payloadFromGraph.trigger_conditions !== undefined && {
+        trigger_conditions: payloadFromGraph.trigger_conditions,
+      }),
     }
 
     const result = await execute(() => onSubmit(payload))
@@ -150,10 +166,14 @@ export function WorkflowCreateModalGraph({
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-4">
           <div className="min-w-[200px]">
-            <label className="block text-xs font-medium text-muted-foreground mb-1">
+            <label
+              htmlFor={startFromId}
+              className="block text-xs font-medium text-muted-foreground mb-1"
+            >
               Start from
             </label>
             <SingleSelectCombobox
+              id={startFromId}
               value={selectedTemplateId ?? ''}
               onValueChange={(value) => {
                 const templateId = value || null
@@ -183,10 +203,14 @@ export function WorkflowCreateModalGraph({
         </div>
         <div className="flex flex-wrap items-end gap-4">
           <div className="flex-1 min-w-[180px]">
-            <label className="block text-xs font-medium text-muted-foreground mb-1">
+            <label
+              htmlFor={workflowNameId}
+              className="block text-xs font-medium text-muted-foreground mb-1"
+            >
               Workflow name
             </label>
             <Input
+              id={workflowNameId}
               value={name}
               onChange={(e) => {
                 setName(e.target.value)
@@ -201,10 +225,14 @@ export function WorkflowCreateModalGraph({
             )}
           </div>
           <div className="flex-1 min-w-[180px]">
-            <label className="block text-xs font-medium text-muted-foreground mb-1">
+            <label
+              htmlFor={descriptionOptionalId}
+              className="block text-xs font-medium text-muted-foreground mb-1"
+            >
               Description (optional)
             </label>
             <Input
+              id={descriptionOptionalId}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Short description"
@@ -212,14 +240,21 @@ export function WorkflowCreateModalGraph({
             />
           </div>
           <div className="min-w-[200px]">
-            <label className="block text-xs font-medium text-muted-foreground mb-1">
+            <label
+              htmlFor={whenThisWorkflowId}
+              className="block text-xs font-medium text-muted-foreground mb-1"
+            >
               When this workflow runs
             </label>
-            <p className="text-[11px] text-muted-foreground/80 mb-1">
+            <p id={whenThisWorkflowId} className="text-[11px] text-muted-foreground/80 mb-1">
               This workflow runs when an event of this type is created.
             </p>
             <SingleSelectCombobox
-              value={triggerNode ? (triggerNode.configuration?.eventType as string) ?? '' : triggerEventType}
+              value={
+                triggerNode
+                  ? ((triggerNode.configuration?.eventType as string) ?? '')
+                  : triggerEventType
+              }
               onValueChange={handleTriggerEventTypeChange}
               options={[
                 { value: '', label: 'When event type…' },
@@ -228,7 +263,11 @@ export function WorkflowCreateModalGraph({
               placeholder="When event type…"
               disabled={loading || loadingEventTypes}
               error={fieldErrors.triggerEventType}
-              className={fieldErrors.triggerEventType ? 'border-destructive rounded-none border-input/80' : 'rounded-none border-input/80'}
+              className={
+                fieldErrors.triggerEventType
+                  ? 'border-destructive rounded-none border-input/80'
+                  : 'rounded-none border-input/80'
+              }
             />
             {fieldErrors.triggerEventType && (
               <p className="text-xs text-destructive mt-1">{fieldErrors.triggerEventType}</p>
@@ -249,42 +288,43 @@ export function WorkflowCreateModalGraph({
               onSelectionChange={setSelectedNodeId}
             />
           </div>
-          {selectedNodeId && (() => {
-            const node = workflow.nodes.find((n) => n.id === selectedNodeId)
-            if (!node) return null
-            const isTrigger = nodeRegistry.getOptional(node.type)?.isTrigger
-            const templateStepTip = selectedTemplate?.stepTips?.[node.id]
-            return (
-              <div className="w-64 shrink-0 rounded-lg border border-border bg-background p-3">
-                {isTrigger ? (
-                  <>
-                    <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-0.5">
-                      Change trigger
+          {selectedNodeId &&
+            (() => {
+              const node = workflow.nodes.find((n) => n.id === selectedNodeId)
+              if (!node) return null
+              const isTrigger = nodeRegistry.getOptional(node.type)?.isTrigger
+              const templateStepTip = selectedTemplate?.stepTips?.[node.id]
+              return (
+                <div className="w-64 shrink-0 rounded-lg border border-border bg-background p-3">
+                  {isTrigger ? (
+                    <>
+                      <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-0.5">
+                        Change trigger
+                      </h4>
+                      <p className="text-[11px] text-muted-foreground/80 mb-3">
+                        Pick an event to start this workflow.
+                      </p>
+                    </>
+                  ) : (
+                    <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                      Configure step
                     </h4>
-                    <p className="text-[11px] text-muted-foreground/80 mb-3">
-                      Pick an event to start this workflow.
-                    </p>
-                  </>
-                ) : (
-                  <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-                    Configure step
-                  </h4>
-                )}
-                <NodeConfigPanel
-                  node={node}
-                  workflowContext={workflowContext}
-                  templateStepTip={templateStepTip}
-                  onUpdate={(updates) =>
-                    setWorkflow((prev) =>
-                      updateNode(prev, node.id, {
-                        configuration: { ...node.configuration, ...updates },
-                      })
-                    )
-                  }
-                />
-              </div>
-            )
-          })()}
+                  )}
+                  <NodeConfigPanel
+                    node={node}
+                    workflowContext={workflowContext}
+                    templateStepTip={templateStepTip}
+                    onUpdate={(updates) =>
+                      setWorkflow((prev) =>
+                        updateNode(prev, node.id, {
+                          configuration: { ...node.configuration, ...updates },
+                        }),
+                      )
+                    }
+                  />
+                </div>
+              )
+            })()}
           {!selectedNodeId && selectedTemplate && (
             <div className="w-64 shrink-0 rounded-lg border border-border bg-background p-3">
               <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
@@ -293,7 +333,9 @@ export function WorkflowCreateModalGraph({
               <span className="inline-block rounded-md border border-violet-200/80 bg-violet-50/80 dark:border-violet-800/60 dark:bg-violet-950/30 px-2 py-0.5 text-[10px] font-medium text-violet-700 dark:text-violet-300 mb-2">
                 {selectedTemplate.category}
               </span>
-              <p className="text-[13px] font-medium text-foreground mb-1">{selectedTemplate.name}</p>
+              <p className="text-[13px] font-medium text-foreground mb-1">
+                {selectedTemplate.name}
+              </p>
               <p className="text-[11px] text-muted-foreground leading-relaxed">
                 {selectedTemplate.description}
               </p>

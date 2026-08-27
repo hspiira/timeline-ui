@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router'
-import { FileText, Eye, ArrowUpRight } from 'lucide-react'
-import type { EventResponse } from '@/lib/types'
+import { ArrowUpRight, Eye, FileText } from 'lucide-react'
 import { formatEventDate, formatEventTime } from '@/lib/format-date'
+import type { EventResponse } from '@/lib/types'
 
 export interface EventsTableProps {
   events: EventResponse[]
@@ -17,7 +17,7 @@ export interface EventsTableProps {
 function payloadSnippet(payload: EventResponse['payload'], maxLen = 80): string {
   if (!payload || typeof payload !== 'object') return '—'
   const str = JSON.stringify(payload)
-  return str.length <= maxLen ? str : str.slice(0, maxLen) + '…'
+  return str.length <= maxLen ? str : `${str.slice(0, maxLen)}…`
 }
 
 export function EventsTable({

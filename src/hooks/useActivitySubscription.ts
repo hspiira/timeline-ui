@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { getAuthToken, getApiBaseUrl } from '@/lib/api-client'
+import { getApiBaseUrl, getAuthToken } from '@/lib/api-client'
 import type { Activity } from '@/lib/types/activity'
 
 interface UseActivitySubscriptionOptions {
@@ -76,7 +76,7 @@ export function useActivitySubscription({
         onError?.(err instanceof Error ? err : new Error('Unknown error'))
       }
     },
-    [onNewActivity, onActivityUpdated, onActivityRemoved, onError]
+    [onNewActivity, onActivityUpdated, onActivityRemoved, onError],
   )
 
   /**
@@ -91,10 +91,17 @@ export function useActivitySubscription({
         const parsed = JSON.parse(raw) as Record<string, unknown>
         const eventType = event.type as string
         if (eventType !== 'message') {
-          if (eventType === 'activity_created') dispatchEvent({ type: 'activity_created', data: parsed as unknown as Activity })
-          else if (eventType === 'activity_updated') dispatchEvent({ type: 'activity_updated', data: parsed as unknown as Activity })
-          else if (eventType === 'activity_removed') dispatchEvent({ type: 'activity_removed', data: { id: (parsed?.id as string) ?? '' } })
-          else if (eventType === 'error') dispatchEvent({ type: 'error', data: { message: (parsed?.message as string) ?? 'Unknown error' } })
+          if (eventType === 'activity_created')
+            dispatchEvent({ type: 'activity_created', data: parsed as unknown as Activity })
+          else if (eventType === 'activity_updated')
+            dispatchEvent({ type: 'activity_updated', data: parsed as unknown as Activity })
+          else if (eventType === 'activity_removed')
+            dispatchEvent({ type: 'activity_removed', data: { id: (parsed?.id as string) ?? '' } })
+          else if (eventType === 'error')
+            dispatchEvent({
+              type: 'error',
+              data: { message: (parsed?.message as string) ?? 'Unknown error' },
+            })
           return
         }
         const msg = parsed as SubscriptionEvent
@@ -104,8 +111,10 @@ export function useActivitySubscription({
         onError?.(err instanceof Error ? err : new Error('Unknown error'))
       }
     },
-    [dispatchEvent, onError]
+    [dispatchEvent, onError],
   )
+
+  const attemptReconnectRef = useRef<() => void>(() => {})
 
   const connect = useCallback(() => {
     if (eventSourceRef.current?.readyState === EventSource.OPEN) return
@@ -136,12 +145,12 @@ export function useActivitySubscription({
         setIsConnected(false)
         es.close()
         eventSourceRef.current = null
-        attemptReconnect()
+        attemptReconnectRef.current()
       }
     } catch (err) {
       console.error('Failed to create EventSource:', err)
       onError?.(err instanceof Error ? err : new Error('Failed to create EventSource'))
-      attemptReconnect()
+      attemptReconnectRef.current()
     }
   }, [handleSSEMessage, onError])
 
@@ -152,18 +161,22 @@ export function useActivitySubscription({
     }
     setIsReconnecting(true)
     reconnectAttemptsRef.current += 1
-    const delay = RECONNECT_INTERVAL * Math.pow(2, reconnectAttemptsRef.current - 1)
+    const delay = RECONNECT_INTERVAL * 2 ** (reconnectAttemptsRef.current - 1)
     reconnectTimeoutRef.current = setTimeout(() => {
       console.log(`Attempting to reconnect (attempt ${reconnectAttemptsRef.current})...`)
       connect()
     }, delay)
   }, [connect])
 
+  useEffect(() => {
+    attemptReconnectRef.current = attemptReconnect
+  }, [attemptReconnect])
+
   const subscribe = useCallback(
     (_filters?: { actions?: string[]; resourceTypes?: string[]; userId?: string }) => {
       // SSE does not support client-side subscribe; server decides what to stream.
     },
-    []
+    [],
   )
 
   const unsubscribe = useCallback(() => {
@@ -187,7 +200,7 @@ export function useActivitySubscription({
   useEffect(() => {
     if (enabled) connect()
     return () => disconnect()
-  }, [enabled, subjectId, connect, disconnect])
+  }, [enabled, connect, disconnect])
 
   return {
     isConnected,
@@ -211,7 +224,7 @@ export const useEventStream = useActivitySubscription
  */
 export function useSimulatedActivityStream(
   onNewActivity: (activity: Activity) => void,
-  enabled = true
+  enabled = true,
 ) {
   const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -230,7 +243,7 @@ export function useSimulatedActivityStream(
         resourceId: `resource_${Math.random().toString(36).substr(2, 9)}`,
         resourceName: `Resource ${Math.floor(Math.random() * 100)}`,
         timestamp: new Date(),
-        priority: ['low', 'medium', 'high'][Math.floor(Math.random() * 3)] as any,
+        priority: (['low', 'medium', 'high'] as const)[Math.floor(Math.random() * 3)],
         description: 'Simulated activity for development',
       }
 

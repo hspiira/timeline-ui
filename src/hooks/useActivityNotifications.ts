@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react'
-import type { Activity } from '@/lib/types/activity'
 import { useToast } from '@/hooks/useToast'
+import type { Activity } from '@/lib/types/activity'
 
 interface NotificationPreferences {
   enableNotifications?: boolean
@@ -31,7 +31,7 @@ export function useActivityNotifications(preferences: NotificationPreferences = 
     showForActions = ['created', 'verified'],
     showForResourceTypes = [],
     groupByResourceType: _groupByResourceType = false,
-    autoCloseDuration = 5000,
+    autoCloseDuration: _autoCloseDuration = 5000,
   } = preferences
 
   const toast = useToast()
@@ -56,7 +56,7 @@ export function useActivityNotifications(preferences: NotificationPreferences = 
 
       return true
     },
-    [enableNotifications, showForActions, showForResourceTypes]
+    [enableNotifications, showForActions, showForResourceTypes],
   )
 
   const getActionEmoji = useCallback((action: string): string => {
@@ -84,7 +84,7 @@ export function useActivityNotifications(preferences: NotificationPreferences = 
 
       toast.info(title, description)
     },
-    [shouldNotify, getActionEmoji, toast, autoCloseDuration]
+    [shouldNotify, getActionEmoji, toast],
   )
 
   const notifyActivityUpdate = useCallback(
@@ -97,7 +97,7 @@ export function useActivityNotifications(preferences: NotificationPreferences = 
 
       toast.info(title, description)
     },
-    [enableNotifications, getActionEmoji, toast]
+    [enableNotifications, getActionEmoji, toast],
   )
 
   const clearNotifications = useCallback(() => {

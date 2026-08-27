@@ -1,16 +1,17 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useState, useEffect } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
-import { useRequireAuth } from '@/hooks/useRequireAuth'
-import { timelineApi } from '@/lib/api-client'
-import { Plus, Eye, Trash2, CheckCircle } from 'lucide-react'
+import { CheckCircle, Eye, Plus, Trash2 } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
 import { SchemaFormModal } from '@/components/schemas/SchemaFormModal'
-import { ErrorModal } from '@/components/ui/ErrorModal'
 import { SchemaViewModal } from '@/components/schemas/SchemaViewModal'
+import { Button } from '@/components/ui/button'
 import { ConfirmModal } from '@/components/ui/ConfirmModal'
 import { DataTable } from '@/components/ui/DataTable'
+import { ErrorModal } from '@/components/ui/ErrorModal'
+import { useRequireAuth } from '@/hooks/useRequireAuth'
+import { timelineApi } from '@/lib/api-client'
+import { getApiErrorMessage } from '@/lib/api-utils'
 import type { components } from '@/lib/timeline-api'
-import { Button } from '@/components/ui/button'
 
 export const Route = createFileRoute('/settings/schemas/')({
   component: SchemasPage,
@@ -28,24 +29,11 @@ function SchemasPage() {
   const [viewingSchema, setViewingSchema] = useState<SchemaFull | null>(null)
   const [loadingSchema, setLoadingSchema] = useState(false)
   const [deletingSchema, setDeletingSchema] = useState<SchemaListItem | null>(null)
-  const [subjectTypes, setSubjectTypes] = useState<{ type_name: string; display_name: string }[]>([])
+  const [subjectTypes, setSubjectTypes] = useState<{ type_name: string; display_name: string }[]>(
+    [],
+  )
 
-  useEffect(() => {
-    if (authState.user) {
-      fetchSchemas()
-    }
-  }, [authState.user])
-
-  useEffect(() => {
-    if (authState.user && showCreateModal) {
-      timelineApi.subjectTypes.list({ limit: 500 }).then(({ data }) => {
-        const list = Array.isArray(data) ? data : []
-        setSubjectTypes(list.map((t) => ({ type_name: t.type_name, display_name: t.display_name ?? t.type_name })))
-      })
-    }
-  }, [authState.user, showCreateModal])
-
-  const fetchSchemas = async () => {
+  const fetchSchemas = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
@@ -64,27 +52,43 @@ function SchemasPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    if (authState.user) {
+      fetchSchemas()
+    }
+  }, [authState.user, fetchSchemas])
+
+  useEffect(() => {
+    if (authState.user && showCreateModal) {
+      timelineApi.subjectTypes.list({ limit: 500 }).then(({ data }) => {
+        const list = Array.isArray(data) ? data : []
+        setSubjectTypes(
+          list.map((t) => ({
+            type_name: t.type_name,
+            display_name: t.display_name ?? t.type_name,
+          })),
+        )
+      })
+    }
+  }, [authState.user, showCreateModal])
 
   const handleCreateSchema = async (
     eventType: string,
-    definition: Record<string, any>,
-    allowedSubjectTypes?: string[] | null
+    definition: Record<string, unknown>,
+    allowedSubjectTypes?: string[] | null,
   ) => {
     try {
       const { data, error: apiError } = await timelineApi.eventSchemas.create({
         event_type: eventType,
         schema_definition: definition,
         is_active: true,
-        allowed_subject_types:
-          allowedSubjectTypes?.length ? allowedSubjectTypes : undefined,
+        allowed_subject_types: allowedSubjectTypes?.length ? allowedSubjectTypes : undefined,
       })
 
       if (apiError) {
-        const errorMsg =
-          typeof apiError === 'object' && 'message' in apiError
-            ? (apiError as any).message
-            : 'Failed to create schema'
+        const errorMsg = getApiErrorMessage(apiError, 'Failed to create schema')
         setError(errorMsg)
         return false
       }
@@ -114,12 +118,7 @@ function SchemasPage() {
       const { error: apiError } = await timelineApi.eventSchemas.delete(deletingSchema.id)
 
       if (apiError) {
-        const errorMsg =
-          typeof apiError === 'object' && 'detail' in apiError
-            ? (apiError as any).detail
-            : typeof apiError === 'object' && 'message' in apiError
-              ? (apiError as any).message
-              : 'Failed to delete schema'
+        const errorMsg = getApiErrorMessage(apiError, 'Failed to delete schema')
         throw new Error(errorMsg)
       }
 
@@ -148,9 +147,7 @@ function SchemasPage() {
     {
       accessorKey: 'version',
       header: 'Version',
-      cell: ({ row }) => (
-        <span className="text-muted-foreground">v{row.original.version}</span>
-      ),
+      cell: ({ row }) => <span className="text-muted-foreground">v{row.original.version}</span>,
     },
     {
       id: 'status',
@@ -169,9 +166,7 @@ function SchemasPage() {
       id: 'created_by',
       header: 'Created By',
       cell: ({ row }) => (
-        <span className="text-muted-foreground text-sm">
-          {row.original.created_by || '—'}
-        </span>
+        <span className="text-muted-foreground text-sm">{row.original.created_by || '—'}</span>
       ),
     },
     {
@@ -224,7 +219,9 @@ function SchemasPage() {
       )}
 
       {/* View/Edit Schema Modal */}
-      {viewingSchema && <SchemaViewModal schema={viewingSchema} onClose={() => setViewingSchema(null)} />}
+      {viewingSchema && (
+        <SchemaViewModal schema={viewingSchema} onClose={() => setViewingSchema(null)} />
+      )}
 
       {/* Delete Schema Modal */}
       {deletingSchema && (
@@ -238,8 +235,8 @@ function SchemasPage() {
           isDestructive={true}
           details={{
             'event type': deletingSchema.event_type,
-            'version': `v${deletingSchema.version}`,
-            'status': deletingSchema.is_active ? 'Active' : 'Inactive',
+            version: `v${deletingSchema.version}`,
+            status: deletingSchema.is_active ? 'Active' : 'Inactive',
           }}
           warning="Deletion is only possible if no events reference this schema version. If you see an error, keep this version as an inactive schema for historical verification."
           onConfirm={handleConfirmDelete}
@@ -257,13 +254,11 @@ function SchemasPage() {
       <div className="flex items-center justify-between mb-3">
         <div>
           <h1 className="text-lg font-bold text-foreground">Event Schemas</h1>
-          <p className="text-sm text-muted-foreground mt-0.5">Manage JSON schemas for event validation</p>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Manage JSON schemas for event validation
+          </p>
         </div>
-        <Button
-          onClick={() => setShowCreateModal(true)}
-          variant="primary"
-          size="md"
-        >
+        <Button onClick={() => setShowCreateModal(true)} variant="primary" size="md">
           <Plus className="w-4 h-4" />
           Schema
         </Button>

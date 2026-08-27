@@ -1,4 +1,4 @@
-import { X, AlertCircle, CheckCircle2, AlertTriangle, Info } from 'lucide-react'
+import { AlertCircle, AlertTriangle, CheckCircle2, Info, X } from 'lucide-react'
 import { useEffect } from 'react'
 
 export type ToastType = 'success' | 'error' | 'warning' | 'info'
@@ -72,6 +72,7 @@ export function Toast({ id, type, title, message, duration = 4000, onClose }: To
         {message && <p className={`text-sm mt-0.5 ${styles.message}`}>{message}</p>}
       </div>
       <button
+        type="button"
         onClick={() => onClose(id)}
         className={`flex-shrink-0 ${styles.icon} hover:opacity-70 transition-opacity`}
         aria-label="Close notification"

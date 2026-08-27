@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { Flame, RefreshCw } from 'lucide-react'
-import { DashboardCard } from './DashboardCard'
 import { Skeleton } from '@/components/ui/Skeleton'
+import { DashboardCard } from './DashboardCard'
 
 interface UrgentTasksCardProps {
   /** Number to show in center (e.g. open urgent count) */
@@ -29,7 +29,10 @@ export function UrgentTasksCard({ count = 0, onRefresh, loading = false }: Urgen
               <RefreshCw className="w-4 h-4" />
             </button>
           )}
-          <Link to="/events" className="text-xs text-muted-foreground hover:text-[var(--dashboard-accent)]">
+          <Link
+            to="/events"
+            className="text-xs text-muted-foreground hover:text-[var(--dashboard-accent)]"
+          >
             View details &gt;
           </Link>
         </div>
@@ -51,7 +54,9 @@ export function UrgentTasksCard({ count = 0, onRefresh, loading = false }: Urgen
                 aria-hidden
               />
               <div className="absolute inset-0 flex items-center justify-center">
-                <span className="font-display text-2xl font-bold text-foreground tabular-nums">{count}</span>
+                <span className="font-display text-2xl font-bold text-foreground tabular-nums">
+                  {count}
+                </span>
               </div>
             </>
           )}
@@ -59,6 +64,7 @@ export function UrgentTasksCard({ count = 0, onRefresh, loading = false }: Urgen
         <ul className="flex-1 space-y-2 min-w-0">
           {loading
             ? Array.from({ length: SKELETON_ITEMS }).map((_, i) => (
+                // biome-ignore lint/suspicious/noArrayIndexKey: fixed-length loading placeholder; the list never reorders.
                 <li key={i}>
                   <Skeleton className="h-4 w-full mb-1" />
                   <Skeleton className="h-3 w-3/4" />

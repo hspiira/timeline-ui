@@ -27,10 +27,11 @@ export interface SentenceStepConfig {
  */
 export function parseTemplateVariables(template: string): string[] {
   const names: string[] = []
-  let m: RegExpExecArray | null
   PLACEHOLDER_REGEX.lastIndex = 0
-  while ((m = PLACEHOLDER_REGEX.exec(template)) !== null) {
+  let m: RegExpExecArray | null = PLACEHOLDER_REGEX.exec(template)
+  while (m !== null) {
     if (!names.includes(m[1])) names.push(m[1])
+    m = PLACEHOLDER_REGEX.exec(template)
   }
   return names
 }
@@ -42,7 +43,7 @@ export function parseTemplateVariables(template: string): string[] {
 export function substituteSentence(
   template: string,
   variables: Record<string, string | number | boolean> = {},
-  options?: { fallbackMissing?: string }
+  options?: { fallbackMissing?: string },
 ): string {
   const fallback = options?.fallbackMissing ?? ''
   return template.replace(PLACEHOLDER_REGEX, (_, name) => {
@@ -66,13 +67,13 @@ export interface SentenceSegment {
 
 export function getSentenceSegments(
   template: string,
-  variables: Record<string, string | number | boolean> = {}
+  variables: Record<string, string | number | boolean> = {},
 ): SentenceSegment[] {
   const segments: SentenceSegment[] = []
   let lastIndex = 0
-  let m: RegExpExecArray | null
   PLACEHOLDER_REGEX.lastIndex = 0
-  while ((m = PLACEHOLDER_REGEX.exec(template)) !== null) {
+  const m: RegExpExecArray | null = PLACEHOLDER_REGEX.exec(template)
+  while (m !== null) {
     if (m.index > lastIndex) {
       segments.push({ type: 'text', value: template.slice(lastIndex, m.index) })
     }

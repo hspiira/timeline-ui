@@ -1,13 +1,23 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { requireAuthBeforeLoad } from '@/lib/route-auth'
-import { useState, useEffect } from 'react'
+import {
+  ArrowLeft,
+  CheckCircle,
+  Cloud,
+  ExternalLink,
+  Inbox,
+  Lock,
+  Mail,
+  Server,
+} from 'lucide-react'
+import { useEffect, useId, useState } from 'react'
+import SubjectSelector from '@/components/subjects/SubjectSelector'
+import { Button } from '@/components/ui/button'
+import { ErrorIcon, LoadingIcon } from '@/components/ui/icons'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/hooks/useToast'
 import { timelineApi } from '@/lib/api-client'
-import { ArrowLeft, Mail, Lock, Server, CheckCircle, Cloud, Inbox, ExternalLink } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { LoadingIcon, ErrorIcon } from '@/components/ui/icons'
-import SubjectSelector from '@/components/subjects/SubjectSelector'
+import { getApiErrorMessage } from '@/lib/api-utils'
+import { requireAuthBeforeLoad } from '@/lib/route-auth'
 import type { components } from '@/lib/timeline-api'
 
 export const Route = createFileRoute('/email-accounts/create')({
@@ -69,6 +79,12 @@ const PROVIDERS: Record<EmailProvider, ProviderConfig> = {
 }
 
 function CreateEmailAccountPage() {
+  const useSslId = useId()
+  const emailAddressId = useId()
+  const imapServerId = useId()
+  const passwordAppSpecificId = useId()
+  const portId = useId()
+  const subjectFieldId = useId()
   const authState = useRequireAuth()
   const navigate = useNavigate()
   const toast = useToast()
@@ -138,7 +154,7 @@ function CreateEmailAccountPage() {
     // Check if OAuth is configured for this provider
     if (!isOAuthConfigured(provider)) {
       setError(
-        `OAuth for ${PROVIDERS[provider].name} is not configured. Please contact your administrator to set up OAuth credentials, or use IMAP authentication.`
+        `OAuth for ${PROVIDERS[provider].name} is not configured. Please contact your administrator to set up OAuth credentials, or use IMAP authentication.`,
       )
       return
     }
@@ -235,20 +251,19 @@ function CreateEmailAccountPage() {
           username: email,
           password: password,
         },
-        connection_params: imapServer ? {
-          imap_host: imapServer,
-          imap_port: parseInt(imapPort, 10),
-          use_ssl: useSsl,
-        } : undefined,
+        connection_params: imapServer
+          ? {
+              imap_host: imapServer,
+              imap_port: parseInt(imapPort, 10),
+              use_ssl: useSsl,
+            }
+          : undefined,
       }
 
       const { data, error: apiError } = await timelineApi.emailAccounts.create(accountData)
 
       if (apiError) {
-        const errorMsg =
-          typeof apiError === 'object' && 'message' in apiError
-            ? (apiError as any).message
-            : 'Failed to create email account'
+        const errorMsg = getApiErrorMessage(apiError, 'Failed to create email account')
         setError(errorMsg)
         toast.error('Failed to connect', errorMsg)
       } else if (data) {
@@ -256,7 +271,8 @@ function CreateEmailAccountPage() {
         navigate({ to: '/email-accounts' })
       }
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Unexpected error creating email account'
+      const errorMsg =
+        err instanceof Error ? err.message : 'Unexpected error creating email account'
       setError(errorMsg)
       toast.error('Error connecting', errorMsg)
     } finally {
@@ -269,6 +285,7 @@ function CreateEmailAccountPage() {
       {/* Header */}
       <div className="flex items-center gap-3 mb-3">
         <button
+          type="button"
           onClick={() => {
             if (step === 'configure') {
               setStep('select')
@@ -321,6 +338,7 @@ function CreateEmailAccountPage() {
 
               return (
                 <button
+                  type="button"
                   key={provider}
                   onClick={() => handleProviderSelect(provider)}
                   className="p-4 bg-card/80 backdrop-blur-sm border border-border/50 rounded-none hover:border-primary/50 hover:bg-card transition-all text-left group"
@@ -375,10 +393,17 @@ function CreateEmailAccountPage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Subject Selection */}
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">
+              <label
+                htmlFor={subjectFieldId}
+                className="block text-sm font-medium text-foreground mb-1.5"
+              >
                 Subject <span className="text-red-500">*</span>
               </label>
-              <SubjectSelector value={subjectId} onChange={(value) => setSubjectId(value)} />
+              <SubjectSelector
+                id={subjectFieldId}
+                value={subjectId}
+                onChange={(value) => setSubjectId(value)}
+              />
               <p className="text-xs text-muted-foreground mt-1">
                 The subject this email account will be linked to
               </p>
@@ -386,10 +411,13 @@ function CreateEmailAccountPage() {
 
             {/* Email Address */}
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1.5">
+              <label
+                htmlFor={emailAddressId}
+                className="block text-sm font-medium text-foreground mb-1.5"
+              >
                 Email Address <span className="text-red-500">*</span>
               </label>
-              <div className="relative">
+              <div id={emailAddressId} className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <input
                   type="email"
@@ -407,10 +435,13 @@ function CreateEmailAccountPage() {
               <>
                 {/* Password */}
                 <div>
-                  <label className="block text-sm font-medium text-foreground mb-1.5">
+                  <label
+                    htmlFor={passwordAppSpecificId}
+                    className="block text-sm font-medium text-foreground mb-1.5"
+                  >
                     Password / App-Specific Password <span className="text-red-500">*</span>
                   </label>
-                  <div className="relative">
+                  <div id={passwordAppSpecificId} className="relative">
                     <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                     <input
                       type="password"
@@ -422,17 +453,21 @@ function CreateEmailAccountPage() {
                     />
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
-                    For Gmail, iCloud, and Yahoo, use an app-specific password instead of your regular password
+                    For Gmail, iCloud, and Yahoo, use an app-specific password instead of your
+                    regular password
                   </p>
                 </div>
 
                 {/* IMAP Server */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div className="md:col-span-2">
-                    <label className="block text-sm font-medium text-foreground mb-1.5">
+                    <label
+                      htmlFor={imapServerId}
+                      className="block text-sm font-medium text-foreground mb-1.5"
+                    >
                       IMAP Server <span className="text-red-500">*</span>
                     </label>
-                    <div className="relative">
+                    <div id={imapServerId} className="relative">
                       <Server className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <input
                         type="text"
@@ -445,10 +480,14 @@ function CreateEmailAccountPage() {
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">
+                    <label
+                      htmlFor={portId}
+                      className="block text-sm font-medium text-foreground mb-1.5"
+                    >
                       Port <span className="text-red-500">*</span>
                     </label>
                     <input
+                      id={portId}
                       type="number"
                       value={imapPort}
                       onChange={(e) => setImapPort(e.target.value)}
@@ -465,12 +504,12 @@ function CreateEmailAccountPage() {
                 <div className="flex items-center gap-2">
                   <input
                     type="checkbox"
-                    id="use_ssl"
+                    id={useSslId}
                     checked={useSsl}
                     onChange={(e) => setUseSsl(e.target.checked)}
                     className="w-4 h-4 rounded-none border-input text-primary focus:ring-2 focus:ring-ring"
                   />
-                  <label htmlFor="use_ssl" className="text-sm font-medium text-foreground">
+                  <label htmlFor={useSslId} className="text-sm font-medium text-foreground">
                     Use SSL/TLS (recommended)
                   </label>
                 </div>
@@ -513,13 +552,15 @@ function CreateEmailAccountPage() {
               >
                 {isOAuthConfigured(selectedProvider as 'gmail' | 'outlook') ? (
                   <p className="text-sm text-blue-900 dark:text-blue-200">
-                    Clicking "Connect" will redirect you to {PROVIDERS[selectedProvider].name} to authorize access to
-                    your email account. You'll be returned here after granting permission.
+                    Clicking "Connect" will redirect you to {PROVIDERS[selectedProvider].name} to
+                    authorize access to your email account. You'll be returned here after granting
+                    permission.
                   </p>
                 ) : (
                   <p className="text-sm text-amber-900 dark:text-amber-200">
-                    OAuth for {PROVIDERS[selectedProvider].name} is not configured by your administrator. Please contact
-                    them to set up OAuth credentials, or choose a different provider.
+                    OAuth for {PROVIDERS[selectedProvider].name} is not configured by your
+                    administrator. Please contact them to set up OAuth credentials, or choose a
+                    different provider.
                   </p>
                 )}
               </div>
@@ -529,7 +570,9 @@ function CreateEmailAccountPage() {
             <div className="flex items-center gap-2 pt-2">
               <Button
                 type="submit"
-                disabled={loading || (PROVIDERS[selectedProvider].authType === 'imap' && !connectionTested)}
+                disabled={
+                  loading || (PROVIDERS[selectedProvider].authType === 'imap' && !connectionTested)
+                }
                 variant="primary"
                 size="md"
               >

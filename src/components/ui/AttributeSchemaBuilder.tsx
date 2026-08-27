@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react'
-import { Plus, Trash2, Code, ListPlus, Filter } from 'lucide-react'
+import { Code, Filter, ListPlus, Plus, Trash2 } from 'lucide-react'
+import { useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -50,8 +50,12 @@ function parseSchemaFromJson(json: string): {
   if (!trimmed) return { properties: {}, required: [], allOf: undefined }
   try {
     const v = JSON.parse(trimmed)
-    if (typeof v !== 'object' || v === null) return { properties: {}, required: [], allOf: undefined }
-    const properties = (v.properties && typeof v.properties === 'object') ? v.properties as Record<string, unknown> : {}
+    if (typeof v !== 'object' || v === null)
+      return { properties: {}, required: [], allOf: undefined }
+    const properties =
+      v.properties && typeof v.properties === 'object'
+        ? (v.properties as Record<string, unknown>)
+        : {}
     const required = Array.isArray(v.required) ? (v.required as string[]) : []
     const allOf = Array.isArray(v.allOf) ? (v.allOf as AllOfBlock[]) : undefined
     return { properties, required, allOf }
@@ -66,7 +70,13 @@ function parseAllOfToRules(allOf: AllOfBlock[] | undefined): ConditionalRule[] {
   for (const block of allOf) {
     const ifProps = block.if?.properties
     const thenRequired = block.then?.required
-    if (!ifProps || typeof ifProps !== 'object' || !Array.isArray(thenRequired) || thenRequired.length === 0) continue
+    if (
+      !ifProps ||
+      typeof ifProps !== 'object' ||
+      !Array.isArray(thenRequired) ||
+      thenRequired.length === 0
+    )
+      continue
     const keys = Object.keys(ifProps)
     if (keys.length !== 1) continue
     const triggerField = keys[0]
@@ -82,6 +92,7 @@ function rulesToAllOf(rules: ConditionalRule[]): AllOfBlock[] | undefined {
   if (filtered.length === 0) return undefined
   return filtered.map((r) => ({
     if: { properties: { [r.triggerField]: { const: r.triggerValue } } },
+    // biome-ignore lint/suspicious/noThenProperty: JSON Schema's if/then keyword.
     then: { required: r.requiredFields },
   }))
 }
@@ -103,9 +114,23 @@ function schemaFieldToProperty(field: SchemaField): Record<string, unknown> {
   return prop
 }
 
-const VALID_FIELD_TYPES: string[] = ['string', 'number', 'integer', 'boolean', 'date', 'date-time', 'email', 'uri', 'enum']
+const VALID_FIELD_TYPES: string[] = [
+  'string',
+  'number',
+  'integer',
+  'boolean',
+  'date',
+  'date-time',
+  'email',
+  'uri',
+  'enum',
+]
 
-function propertyToSchemaField(key: string, prop: Record<string, unknown>, required: string[]): SchemaField {
+function propertyToSchemaField(
+  key: string,
+  prop: Record<string, unknown>,
+  required: string[],
+): SchemaField {
   const rawType = prop.type as string
   const format = prop.format as string
   const enumArr = prop.enum as unknown[] | undefined
@@ -154,7 +179,7 @@ function fieldsToSchema(fields: SchemaField[]): Record<string, unknown> {
 
 function schemaToFields(properties: Record<string, unknown>, required: string[]): SchemaField[] {
   return Object.entries(properties).map(([key, prop]) =>
-    propertyToSchemaField(key, (prop as Record<string, unknown>) || {}, required)
+    propertyToSchemaField(key, (prop as Record<string, unknown>) || {}, required),
   )
 }
 
@@ -179,7 +204,7 @@ export function AttributeSchemaBuilder({
 
   const fields = useMemo(
     () => (Object.keys(properties).length ? schemaToFields(properties, required) : []),
-    [properties, required]
+    [properties, required],
   )
 
   const conditionalRules = useMemo(() => parseAllOfToRules(allOf), [allOf])
@@ -258,7 +283,7 @@ export function AttributeSchemaBuilder({
               'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors rounded-md',
               mode === 'visual'
                 ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/30',
             )}
           >
             <ListPlus className="w-3.5 h-3.5" />
@@ -271,7 +296,7 @@ export function AttributeSchemaBuilder({
               'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors rounded-md',
               mode === 'json'
                 ? 'bg-background text-foreground shadow-sm'
-                : 'text-muted-foreground hover:text-foreground hover:bg-muted/30'
+                : 'text-muted-foreground hover:text-foreground hover:bg-muted/30',
             )}
           >
             <Code className="w-3.5 h-3.5" />
@@ -295,7 +320,7 @@ export function AttributeSchemaBuilder({
           )}
           {fields.map((field, index) => (
             <div
-              key={index}
+              key={field.key}
               className="flex flex-wrap items-center gap-2 py-1.5 px-2 rounded-md bg-background/60 hover:bg-background/80"
             >
               <input
@@ -382,13 +407,17 @@ export function AttributeSchemaBuilder({
                 Conditional required
               </div>
               <p className="text-[11px] text-muted-foreground">
-                When a field has a specific value, require other fields (e.g. when type = &quot;individual&quot;, require full_name). Add at least 2 fields to add a rule.
+                When a field has a specific value, require other fields (e.g. when type =
+                &quot;individual&quot;, require full_name). Add at least 2 fields to add a rule.
               </p>
               {conditionalRules.map((rule, ruleIndex) => {
                 const triggerFieldDef = fields.find((f) => f.key === rule.triggerField)
-                const otherFieldKeys = fields.filter((f) => f.key !== rule.triggerField).map((f) => f.key)
+                const otherFieldKeys = fields
+                  .filter((f) => f.key !== rule.triggerField)
+                  .map((f) => f.key)
                 return (
                   <div
+                    // biome-ignore lint/suspicious/noArrayIndexKey: read-only list, replaced wholesale rather than reordered in place.
                     key={ruleIndex}
                     className="flex flex-wrap items-center gap-2 py-1.5 px-2 rounded-md bg-muted/30"
                   >
@@ -397,18 +426,25 @@ export function AttributeSchemaBuilder({
                       value={rule.triggerField}
                       onChange={(e) => {
                         const next = [...conditionalRules]
-                        next[ruleIndex] = { ...next[ruleIndex], triggerField: e.target.value, triggerValue: '' }
+                        next[ruleIndex] = {
+                          ...next[ruleIndex],
+                          triggerField: e.target.value,
+                          triggerValue: '',
+                        }
                         updateConditionalRules(next)
                       }}
                       disabled={disabled}
                       className="px-2 py-1.5 text-xs font-mono bg-background/80 border border-border/50 rounded focus:outline-none focus:ring-1 focus:ring-border/50 min-w-[100px]"
                     >
                       {fields.map((f) => (
-                        <option key={f.key} value={f.key}>{f.key}</option>
+                        <option key={f.key} value={f.key}>
+                          {f.key}
+                        </option>
                       ))}
                     </select>
                     <span className="text-xs text-muted-foreground">equals</span>
-                    {triggerFieldDef?.type === 'enum' && (triggerFieldDef.enumValues?.length ?? 0) > 0 ? (
+                    {triggerFieldDef?.type === 'enum' &&
+                    (triggerFieldDef.enumValues?.length ?? 0) > 0 ? (
                       <select
                         value={rule.triggerValue}
                         onChange={(e) => {
@@ -420,7 +456,9 @@ export function AttributeSchemaBuilder({
                         className="px-2 py-1.5 text-xs font-mono bg-background/80 border border-border/50 rounded focus:outline-none focus:ring-1 focus:ring-border/50 min-w-[100px]"
                       >
                         {(triggerFieldDef.enumValues ?? []).map((v) => (
-                          <option key={v} value={v}>{v}</option>
+                          <option key={v} value={v}>
+                            {v}
+                          </option>
                         ))}
                       </select>
                     ) : (
@@ -466,7 +504,9 @@ export function AttributeSchemaBuilder({
                       type="button"
                       variant="ghost"
                       size="sm"
-                      onClick={() => updateConditionalRules(conditionalRules.filter((_, i) => i !== ruleIndex))}
+                      onClick={() =>
+                        updateConditionalRules(conditionalRules.filter((_, i) => i !== ruleIndex))
+                      }
                       disabled={disabled}
                       className="text-muted-foreground hover:text-destructive h-7 w-7 p-0"
                     >
@@ -479,7 +519,12 @@ export function AttributeSchemaBuilder({
                 type="button"
                 variant="secondary"
                 size="sm"
-                onClick={() => updateConditionalRules([...conditionalRules, { triggerField: fields[0]?.key ?? '', triggerValue: '', requiredFields: [] }])}
+                onClick={() =>
+                  updateConditionalRules([
+                    ...conditionalRules,
+                    { triggerField: fields[0]?.key ?? '', triggerValue: '', requiredFields: [] },
+                  ])
+                }
                 disabled={disabled || fields.length < 2}
                 className="text-xs h-7"
               >
@@ -501,12 +546,10 @@ export function AttributeSchemaBuilder({
             rows={14}
             className={cn(
               'w-full px-2.5 py-2 text-[11px] font-mono leading-relaxed bg-background/80 rounded resize-y min-h-[240px] focus:outline-none focus:ring-1 focus:ring-border/50',
-              jsonError ? 'border border-red-400' : 'border border-border/40 focus:border-border'
+              jsonError ? 'border border-red-400' : 'border border-border/40 focus:border-border',
             )}
           />
-          {jsonError && (
-            <p className="text-xs text-destructive mt-1">{jsonError}</p>
-          )}
+          {jsonError && <p className="text-xs text-destructive mt-1">{jsonError}</p>}
         </div>
       )}
     </div>

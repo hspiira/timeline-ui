@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import type { components } from '@/lib/timeline-api'
 import { Modal } from '@/components/ui/Modal'
+import type { components } from '@/lib/timeline-api'
 
 type Schema = components['schemas']['EventSchemaResponse']
 
@@ -23,7 +23,8 @@ type FieldSchema = {
 export function SchemaViewModal({ schema, onClose }: SchemaViewModalProps) {
   const [viewMode, setViewMode] = useState<ViewMode>('simplified')
 
-  const properties = (schema.schema_definition.properties as Record<string, FieldSchema> | undefined) || {}
+  const properties =
+    (schema.schema_definition.properties as Record<string, FieldSchema> | undefined) || {}
   const required = (schema.schema_definition.required as string[] | undefined) || []
 
   const getFieldType = (fieldSchema: FieldSchema): string => {
@@ -33,7 +34,10 @@ export function SchemaViewModal({ schema, onClose }: SchemaViewModalProps) {
     if (fieldSchema.format) {
       return fieldSchema.format
     }
-    if (fieldSchema.type === 'number' && (fieldSchema.minimum !== undefined || fieldSchema.maximum !== undefined)) {
+    if (
+      fieldSchema.type === 'number' &&
+      (fieldSchema.minimum !== undefined || fieldSchema.maximum !== undefined)
+    ) {
       const constraints = []
       if (fieldSchema.minimum !== undefined) constraints.push(`min: ${fieldSchema.minimum}`)
       if (fieldSchema.maximum !== undefined) constraints.push(`max: ${fieldSchema.maximum}`)
@@ -71,6 +75,7 @@ export function SchemaViewModal({ schema, onClose }: SchemaViewModalProps) {
         {/* View Mode Toggle */}
         <div className="flex gap-1 mb-4 border-b border-border">
           <button
+            type="button"
             onClick={() => setViewMode('simplified')}
             className={`px-3 py-2 text-sm font-medium transition-colors border-b-2 ${
               viewMode === 'simplified'
@@ -81,6 +86,7 @@ export function SchemaViewModal({ schema, onClose }: SchemaViewModalProps) {
             Field View
           </button>
           <button
+            type="button"
             onClick={() => setViewMode('json')}
             className={`px-3 py-2 text-sm font-medium transition-colors border-b-2 ${
               viewMode === 'json'
@@ -100,7 +106,10 @@ export function SchemaViewModal({ schema, onClose }: SchemaViewModalProps) {
                 <p className="text-sm text-muted-foreground italic">No fields defined</p>
               ) : (
                 Object.entries(properties).map(([fieldName, fieldSchema]) => (
-                  <div key={fieldName} className="p-3 bg-background/50 border border-border rounded-none">
+                  <div
+                    key={fieldName}
+                    className="p-3 bg-background/50 border border-border rounded-none"
+                  >
                     <div className="flex items-center justify-between gap-2 mb-1">
                       <div className="flex items-center gap-2">
                         <span className="font-medium text-foreground text-sm">{fieldName}</span>
@@ -115,7 +124,9 @@ export function SchemaViewModal({ schema, onClose }: SchemaViewModalProps) {
                       </div>
                     </div>
                     {fieldSchema.description && (
-                      <p className="text-xs text-muted-foreground mt-1">{fieldSchema.description}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {fieldSchema.description}
+                      </p>
                     )}
                     {fieldSchema.enum && (
                       <p className="text-xs text-muted-foreground mt-1">
@@ -138,15 +149,16 @@ export function SchemaViewModal({ schema, onClose }: SchemaViewModalProps) {
         {/* Info Note */}
         <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-none mb-4">
           <p className="text-xs text-blue-900 dark:text-blue-200">
-            This is a read-only view. To modify this schema, create a new version with the Create Schema button.
+            This is a read-only view. To modify this schema, create a new version with the Create
+            Schema button.
           </p>
         </div>
-
       </div>
 
       {/* Close Button */}
       <div className="pt-4 border-t border-border">
         <button
+          type="button"
           onClick={onClose}
           className="w-full px-4 py-2 border border-input text-foreground/90 rounded-none font-medium hover:bg-muted/30 transition-colors text-sm"
         >

@@ -1,32 +1,42 @@
-import { useState, useEffect } from 'react'
 import {
-  DndContext,
   closestCenter,
+  DndContext,
+  type DragEndEvent,
   KeyboardSensor,
   PointerSensor,
   useSensor,
   useSensors,
-  type DragEndEvent,
 } from '@dnd-kit/core'
 import {
   arrayMove,
+  horizontalListSortingStrategy,
   SortableContext,
   sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
-  horizontalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { useEventTypes } from '@/hooks/useEventTypes'
-import { WORKFLOW_ACTION_TYPES, getActionTypeInfo } from '@/lib/workflow-builder/action-types'
-import { useFormSubmit } from '@/hooks/useFormSubmit'
-import type { components } from '@/lib/timeline-api'
-import { Modal } from '@/components/ui/Modal'
+import {
+  ArrowDown,
+  ArrowRight,
+  GitBranch,
+  GripVertical,
+  Info,
+  Plus,
+  Trash2,
+  Zap,
+} from 'lucide-react'
+import { useEffect, useId, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { SingleSelectCombobox } from '@/components/ui/combobox'
 import { ErrorAlert } from '@/components/ui/ErrorAlert'
-import { ArrowDown, ArrowRight, GripVertical, Zap, Trash2, Plus, GitBranch, Info } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { Modal } from '@/components/ui/Modal'
+import { useEventTypes } from '@/hooks/useEventTypes'
+import { useFormSubmit } from '@/hooks/useFormSubmit'
+import type { components } from '@/lib/timeline-api'
+import { toApiActions } from '@/lib/workflow-builder'
+import { getActionTypeInfo, WORKFLOW_ACTION_TYPES } from '@/lib/workflow-builder/action-types'
 
 export type FlowDirection = 'lr' | 'tb'
 
@@ -115,9 +125,19 @@ function BranchConnector({
     const pathD = `M 0 ${height / 2} Q ${width / 2} ${cy} ${width} ${height / 2}`
     return (
       <div className="flex items-center flex-shrink-0 relative" style={{ width: width + 8 }}>
-        <svg width={width} height={height} className="overflow-visible" aria-hidden>
-          <path d={pathD} fill="none" stroke="currentColor" strokeWidth={1.5} className="text-muted-foreground/50" />
-          <polygon points={`${width},${height/2} ${width-5},${height/2-3} ${width-5},${height/2+3}`} fill="currentColor" className="text-muted-foreground/50" />
+        <svg width={width} height={height} className="overflow-visible" aria-hidden="true">
+          <path
+            d={pathD}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.5}
+            className="text-muted-foreground/50"
+          />
+          <polygon
+            points={`${width},${height / 2} ${width - 5},${height / 2 - 3} ${width - 5},${height / 2 + 3}`}
+            fill="currentColor"
+            className="text-muted-foreground/50"
+          />
         </svg>
         <span
           className="absolute text-[10px] font-medium text-muted-foreground bg-background px-1.5 py-0.5 rounded border border-border/70 whitespace-nowrap shadow-sm"
@@ -134,10 +154,23 @@ function BranchConnector({
   const cx = width / 2 + offset
   const pathD = `M ${width / 2} 0 Q ${cx} ${height / 2} ${width / 2} ${height}`
   return (
-    <div className="flex flex-col items-center flex-shrink-0 relative" style={{ height: height + 8 }}>
-      <svg width={width} height={height} className="overflow-visible" aria-hidden>
-        <path d={pathD} fill="none" stroke="currentColor" strokeWidth={1.5} className="text-muted-foreground/50" />
-        <polygon points={`${width/2},${height} ${width/2-3},${height-5} ${width/2+3},${height-5}`} fill="currentColor" className="text-muted-foreground/50" />
+    <div
+      className="flex flex-col items-center flex-shrink-0 relative"
+      style={{ height: height + 8 }}
+    >
+      <svg width={width} height={height} className="overflow-visible" aria-hidden="true">
+        <path
+          d={pathD}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={1.5}
+          className="text-muted-foreground/50"
+        />
+        <polygon
+          points={`${width / 2},${height} ${width / 2 - 3},${height - 5} ${width / 2 + 3},${height - 5}`}
+          fill="currentColor"
+          className="text-muted-foreground/50"
+        />
       </svg>
       <span
         className="absolute text-[10px] font-medium text-muted-foreground bg-background px-1.5 py-0.5 rounded border border-border/70 whitespace-nowrap shadow-sm"
@@ -160,7 +193,9 @@ function ShapeTypeLabel({
   className?: string
 }) {
   return (
-    <div className={`flex items-center justify-center gap-1.5 text-muted-foreground mb-1.5 ${className}`}>
+    <div
+      className={`flex items-center justify-center gap-1.5 text-muted-foreground mb-1.5 ${className}`}
+    >
       <Icon className="w-3.5 h-3.5 shrink-0" />
       <span className="text-[11px] font-medium uppercase tracking-wide">{label}</span>
     </div>
@@ -181,11 +216,21 @@ function AddStepButtons({
 }) {
   return (
     <div className="flex items-center gap-2 shrink-0 flex-nowrap">
-      <button type="button" onClick={onAddAction} disabled={disabled} className={ADD_STEP_BTN_CLASS}>
+      <button
+        type="button"
+        onClick={onAddAction}
+        disabled={disabled}
+        className={ADD_STEP_BTN_CLASS}
+      >
         <Plus className="w-4 h-4" />
         <span className="text-sm font-medium">Add step</span>
       </button>
-      <button type="button" onClick={onAddDecision} disabled={disabled} className={ADD_STEP_BTN_CLASS}>
+      <button
+        type="button"
+        onClick={onAddDecision}
+        disabled={disabled}
+        className={ADD_STEP_BTN_CLASS}
+      >
         <GitBranch className="w-4 h-4" />
         <span className="text-sm font-medium">Add condition</span>
       </button>
@@ -210,21 +255,21 @@ function StartShape({
   direction: FlowDirection
 }) {
   const selectEl = (
-      <SingleSelectCombobox
-        value={eventType}
-        onValueChange={onChange}
-        options={[
-          { value: '', label: 'When event type…' },
-          ...eventTypes.map((t) => ({ value: t, label: t })),
-        ]}
-        placeholder="When event type…"
-        disabled={disabled || loading}
-        className={
-          direction === 'lr'
-            ? 'w-44 text-sm rounded-lg border-border [color-scheme:inherit]'
-            : 'w-56 text-sm rounded-lg border-border text-center [color-scheme:inherit]'
-        }
-      />
+    <SingleSelectCombobox
+      value={eventType}
+      onValueChange={onChange}
+      options={[
+        { value: '', label: 'When event type…' },
+        ...eventTypes.map((t) => ({ value: t, label: t })),
+      ]}
+      placeholder="When event type…"
+      disabled={disabled || loading}
+      className={
+        direction === 'lr'
+          ? 'w-44 text-sm rounded-lg border-border [color-scheme:inherit]'
+          : 'w-56 text-sm rounded-lg border-border text-center [color-scheme:inherit]'
+      }
+    />
   )
   const circle = (
     <div className="flex flex-col items-center justify-center w-16 h-16 rounded-full bg-background border border-border shrink-0">
@@ -270,13 +315,8 @@ function ActionShape({
   onParamsInputChange: (value: string) => void
   disabled?: boolean
 }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-  } = useSortable({ id: step.id })
+  const paramsId = useId()
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: step.id })
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -292,13 +332,10 @@ function ActionShape({
       className="flex flex-col items-center w-[280px] min-w-[280px] shrink-0"
     >
       <ShapeTypeLabel icon={ActionIcon} label={actionLabel} />
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={onSelect}
-        onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onSelect()}
+      <fieldset
+        onFocus={onSelect}
         className={`
-          w-full rounded-xl border border-border bg-background overflow-hidden transition-all
+          w-full min-w-0 rounded-xl border border-border bg-background overflow-hidden transition-all
           ${isSelected ? 'border-primary/50 ring-2 ring-primary/20' : 'hover:border-muted-foreground/40'}
         `}
       >
@@ -317,7 +354,7 @@ function ActionShape({
           <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10">
             <Zap className="w-3.5 h-3.5 text-primary" />
           </div>
-          <div onClick={(e) => e.stopPropagation()} className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0">
             <SingleSelectCombobox
               value={step.type}
               onValueChange={(v) => onUpdate({ type: v })}
@@ -330,7 +367,10 @@ function ActionShape({
           {!disabled && (
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); onRemove() }}
+              onClick={(e) => {
+                e.stopPropagation()
+                onRemove()
+              }}
               className="p-1.5 text-muted-foreground hover:text-destructive rounded-md hover:bg-destructive/10 transition-colors"
               aria-label="Remove"
             >
@@ -338,11 +378,15 @@ function ActionShape({
             </button>
           )}
         </div>
-        <div className="px-3 py-2 bg-muted/30" onClick={(e) => e.stopPropagation()}>
-          <label className="block text-xs font-medium text-foreground uppercase tracking-wide mb-1">
+        <div className="px-3 py-2 bg-muted/30">
+          <label
+            htmlFor={paramsId}
+            className="block text-xs font-medium text-foreground uppercase tracking-wide mb-1"
+          >
             Params
           </label>
           <Input
+            id={paramsId}
             type="text"
             placeholder='{"key": "value"}'
             value={paramsInput}
@@ -351,10 +395,11 @@ function ActionShape({
             className="font-mono text-sm h-9 text-foreground placeholder:text-muted-foreground"
           />
           <p className="text-[10px] text-muted-foreground mt-1 leading-tight">
-            For create_event: payload should match the target event type’s schema. Other actions: action-specific config.
+            For create_event: payload should match the target event type’s schema. Other actions:
+            action-specific config.
           </p>
         </div>
-      </div>
+      </fieldset>
     </div>
   )
 }
@@ -430,13 +475,7 @@ function DecisionShape({
 }) {
   const branchCount = step.branches?.length ?? 0
   const canAddBranch = branchCount < MAX_DECISION_BRANCHES && onAddBranch && !disabled
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-  } = useSortable({ id: step.id })
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: step.id })
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -455,14 +494,17 @@ function DecisionShape({
       className="flex flex-col items-center justify-center shrink-0"
     >
       <ShapeTypeLabel icon={Info} label="Check if / else" />
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={onSelect}
-        onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onSelect()}
-        className="relative transition-colors outline-none border-0 ring-0"
+      <fieldset
+        onFocus={onSelect}
+        className="relative min-w-0 transition-colors outline-none border-0 ring-0"
       >
-        <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="overflow-visible">
+        <svg
+          width={w}
+          height={h}
+          viewBox={`0 0 ${w} ${h}`}
+          aria-hidden="true"
+          className="overflow-visible"
+        >
           <polygon
             points={points}
             fill="var(--card)"
@@ -504,7 +546,10 @@ function DecisionShape({
           {canAddBranch && (
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); onAddBranch() }}
+              onClick={(e) => {
+                e.stopPropagation()
+                onAddBranch()
+              }}
               className="p-1 text-muted-foreground hover:text-primary hover:bg-muted/50 rounded border-0 bg-transparent text-[10px] font-medium"
               aria-label="Add branch"
               title={`Add branch (${branchCount}/${MAX_DECISION_BRANCHES})`}
@@ -515,7 +560,10 @@ function DecisionShape({
           {!disabled && (
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); onRemove() }}
+              onClick={(e) => {
+                e.stopPropagation()
+                onRemove()
+              }}
               className="p-1 text-muted-foreground hover:text-destructive hover:bg-muted/50 rounded border-0 bg-transparent"
               aria-label="Remove"
             >
@@ -523,7 +571,7 @@ function DecisionShape({
             </button>
           )}
         </div>
-      </div>
+      </fieldset>
     </div>
   )
 }
@@ -534,7 +582,14 @@ export interface WorkflowCreateModalProps {
   title?: string
 }
 
-export function WorkflowCreateModal({ onClose, onSubmit, title = 'Create workflow' }: WorkflowCreateModalProps) {
+export function WorkflowCreateModal({
+  onClose,
+  onSubmit,
+  title = 'Create workflow',
+}: WorkflowCreateModalProps) {
+  const descriptionOptionalId = useId()
+  const flowDirectionId = useId()
+  const workflowNameId = useId()
   const { types: eventTypes, loading: loadingEventTypes } = useEventTypes()
 
   const [name, setName] = useState('')
@@ -555,19 +610,16 @@ export function WorkflowCreateModal({ onClose, onSubmit, title = 'Create workflo
     const step = steps.find((s) => s.id === selectedStepId)
     if (step && isActionStep(step)) {
       setParamsInput(
-        Object.keys(step.params).length === 0
-          ? ''
-          : JSON.stringify(step.params, null, 0)
+        Object.keys(step.params).length === 0 ? '' : JSON.stringify(step.params, null, 0),
       )
     } else {
       setParamsInput('')
     }
   }, [selectedStepId, steps])
 
-
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -593,7 +645,7 @@ export function WorkflowCreateModal({ onClose, onSubmit, title = 'Create workflo
 
   const stepToPayloadEntries = (
     step: Step,
-    get: (id: string) => Step | undefined
+    get: (id: string) => Step | undefined,
   ): { type: string; params: Record<string, unknown> | null }[] => {
     if (isActionStep(step)) {
       return [{ type: step.type, params: step.params || null }]
@@ -645,8 +697,8 @@ export function WorkflowCreateModal({ onClose, onSubmit, title = 'Create workflo
       prev
         .filter((s) => s.id !== id)
         .map((s) =>
-          isDecisionStep(s) ? { ...s, branches: s.branches.filter((b) => b !== id) } : s
-        )
+          isDecisionStep(s) ? { ...s, branches: s.branches.filter((b) => b !== id) } : s,
+        ),
     )
     if (selectedStepId === id) setSelectedStepId(null)
   }
@@ -665,7 +717,7 @@ export function WorkflowCreateModal({ onClose, onSubmit, title = 'Create workflo
       const updated = prev.map((s) =>
         s.id === decisionId && isDecisionStep(s)
           ? { ...s, branches: [...s.branches, newStep.id] }
-          : s
+          : s,
       )
       return [...updated, newStep]
     })
@@ -673,14 +725,12 @@ export function WorkflowCreateModal({ onClose, onSubmit, title = 'Create workflo
   }
 
   const updateActionStep = (id: string, updates: Partial<Pick<ActionStep, 'type' | 'params'>>) => {
-    setSteps((prev) =>
-      prev.map((s) => (s.id === id && isActionStep(s) ? { ...s, ...updates } : s))
-    )
+    setSteps((prev) => prev.map((s) => (s.id === id && isActionStep(s) ? { ...s, ...updates } : s)))
   }
 
   const updateDecisionStep = (id: string, condition: string) => {
     setSteps((prev) =>
-      prev.map((s) => (s.id === id && isDecisionStep(s) ? { ...s, condition } : s))
+      prev.map((s) => (s.id === id && isDecisionStep(s) ? { ...s, condition } : s)),
     )
   }
 
@@ -718,11 +768,17 @@ export function WorkflowCreateModal({ onClose, onSubmit, title = 'Create workflo
       return step ? stepToPayloadEntries(step, getStep) : []
     })
 
+    const { actions, errors: actionErrors } = toApiActions(actionsPayload)
+    if (actionErrors.length > 0) {
+      setFieldErrors({ steps: actionErrors[0] })
+      return
+    }
+
     const payload: WorkflowCreate = {
       name: name.trim(),
       description: description.trim() || undefined,
       trigger_event_type: triggerEventType,
-      actions: actionsPayload,
+      actions,
       execution_order: 0,
       is_active: isActive,
     }
@@ -735,7 +791,8 @@ export function WorkflowCreateModal({ onClose, onSubmit, title = 'Create workflo
     }
   }
 
-  const sortStrategy = flowDirection === 'lr' ? horizontalListSortingStrategy : verticalListSortingStrategy
+  const sortStrategy =
+    flowDirection === 'lr' ? horizontalListSortingStrategy : verticalListSortingStrategy
 
   return (
     <Modal
@@ -749,8 +806,14 @@ export function WorkflowCreateModal({ onClose, onSubmit, title = 'Create workflo
         {/* Workflow name + description: compact bar above canvas */}
         <div className="flex flex-wrap items-center gap-4">
           <div className="flex-1 min-w-[200px]">
-            <label className="block text-xs font-medium text-muted-foreground mb-1">Workflow name</label>
+            <label
+              htmlFor={workflowNameId}
+              className="block text-xs font-medium text-muted-foreground mb-1"
+            >
+              Workflow name
+            </label>
             <Input
+              id={workflowNameId}
               value={name}
               onChange={(e) => {
                 setName(e.target.value)
@@ -765,8 +828,14 @@ export function WorkflowCreateModal({ onClose, onSubmit, title = 'Create workflo
             )}
           </div>
           <div className="flex-1 min-w-[200px]">
-            <label className="block text-xs font-medium text-muted-foreground mb-1">Description (optional)</label>
+            <label
+              htmlFor={descriptionOptionalId}
+              className="block text-xs font-medium text-muted-foreground mb-1"
+            >
+              Description (optional)
+            </label>
             <Input
+              id={descriptionOptionalId}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Short description"
@@ -774,8 +843,14 @@ export function WorkflowCreateModal({ onClose, onSubmit, title = 'Create workflo
             />
           </div>
           <div className="shrink-0">
-            <label className="block text-xs font-medium text-muted-foreground mb-1">Flow direction</label>
+            <label
+              htmlFor={flowDirectionId}
+              className="block text-xs font-medium text-muted-foreground mb-1"
+            >
+              Flow direction
+            </label>
             <SingleSelectCombobox
+              id={flowDirectionId}
               value={flowDirection}
               onValueChange={(v) => setFlowDirection((v || 'lr') as FlowDirection)}
               options={[
@@ -797,7 +872,9 @@ export function WorkflowCreateModal({ onClose, onSubmit, title = 'Create workflo
             backgroundSize: '16px 16px',
           }}
         >
-          <div className={`absolute inset-0 overflow-auto pt-8 pb-8 ${FLOW_LAYOUT[flowDirection].canvas}`}>
+          <div
+            className={`absolute inset-0 overflow-auto pt-8 pb-8 ${FLOW_LAYOUT[flowDirection].canvas}`}
+          >
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}
@@ -806,16 +883,16 @@ export function WorkflowCreateModal({ onClose, onSubmit, title = 'Create workflo
               <div className={FLOW_LAYOUT[flowDirection].mainContainer}>
                 <div className="shrink-0">
                   <StartShape
-                  eventType={triggerEventType}
-                  eventTypes={eventTypes}
-                  loading={loadingEventTypes}
-                  onChange={(v) => {
-                    setTriggerEventType(v)
-                    setFieldErrors((e) => ({ ...e, triggerEventType: '' }))
-                  }}
-                  disabled={loading}
-                  direction={flowDirection}
-                />
+                    eventType={triggerEventType}
+                    eventTypes={eventTypes}
+                    loading={loadingEventTypes}
+                    onChange={(v) => {
+                      setTriggerEventType(v)
+                      setFieldErrors((e) => ({ ...e, triggerEventType: '' }))
+                    }}
+                    disabled={loading}
+                    direction={flowDirection}
+                  />
                 </div>
 
                 {mainFlowStepIds.length > 0 && (
@@ -838,15 +915,22 @@ export function WorkflowCreateModal({ onClose, onSubmit, title = 'Create workflo
                               onUpdateAction={(u) => updateActionStep(step.id, u)}
                               onUpdateDecision={(value) => updateDecisionStep(step.id, value)}
                               onParamsInputChange={(raw) => handleParamsInput(step.id, raw)}
-                              paramsInputValue={isActionStep(step) ? getParamsInputForStep(step) : ''}
-                              onAddBranch={isDecisionStep(step) ? () => addBranchToDecision(step.id) : undefined}
+                              paramsInputValue={
+                                isActionStep(step) ? getParamsInputForStep(step) : ''
+                              }
+                              onAddBranch={
+                                isDecisionStep(step)
+                                  ? () => addBranchToDecision(step.id)
+                                  : undefined
+                              }
                               disabled={loading}
                             />
                             {isDecisionWithBranches && isDecisionStep(step)
                               ? (step.branches ?? []).map((branchId, branchIdx) => {
                                   const branchStep = getStep(branchId)
                                   if (!branchStep) return null
-                                  const branchLabel = BRANCH_LABELS[branchIdx] ?? `Branch ${branchIdx + 1}`
+                                  const branchLabel =
+                                    BRANCH_LABELS[branchIdx] ?? `Branch ${branchIdx + 1}`
                                   return (
                                     <div key={branchId} className={layout.branchWrapper}>
                                       <BranchConnector

@@ -1,27 +1,28 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { requireAuthBeforeLoad } from '@/lib/route-auth'
-import { useState, useEffect } from 'react'
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Calendar,
+  CheckCircle,
+  Clock,
+  Key,
+  Mail,
+  RefreshCw,
+  Server,
+  Shield,
+  Trash2,
+  XCircle,
+} from 'lucide-react'
+import { useCallback, useEffect, useId, useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { ConfirmModal } from '@/components/ui/ConfirmModal'
+import { ErrorIcon, LoadingIcon } from '@/components/ui/icons'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
 import { useToast } from '@/hooks/useToast'
 import { timelineApi } from '@/lib/api-client'
-import {
-  ArrowLeft,
-  Mail,
-  RefreshCw,
-  CheckCircle,
-  XCircle,
-  Server,
-  Calendar,
-  Clock,
-  Trash2,
-  AlertTriangle,
-  Shield,
-  Key,
-} from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { LoadingIcon, ErrorIcon } from '@/components/ui/icons'
-import { ConfirmModal } from '@/components/ui/ConfirmModal'
+import { getApiErrorMessage } from '@/lib/api-utils'
 import { formatDateTimeSafe } from '@/lib/format-date'
+import { requireAuthBeforeLoad } from '@/lib/route-auth'
 import type { EmailAccountResponse } from '@/lib/types'
 
 export const Route = createFileRoute('/email-accounts/$accountId')({
@@ -85,6 +86,9 @@ function getOAuthStatusInfo(status: string | null | undefined): {
 }
 
 function EmailAccountDetailPage() {
+  const emailAddressId = useId()
+  const providerId = useId()
+  const syncStatusId = useId()
   const { accountId } = Route.useParams()
   const authState = useRequireAuth()
   const navigate = useNavigate()
@@ -97,22 +101,14 @@ function EmailAccountDetailPage() {
   const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
-  useEffect(() => {
-    if (authState.user) {
-      fetchAccount()
-    }
-  }, [authState.user, accountId])
-
-  const fetchAccount = async () => {
+  const fetchAccount = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
       const { data, error: apiError } = await timelineApi.emailAccounts.get(accountId)
 
       if (apiError) {
-        const errorObj = apiError as any
-        const errorDetail = errorObj?.detail || errorObj?.message || String(apiError)
-        setError(typeof errorDetail === 'string' ? errorDetail : 'Failed to load email account')
+        setError(getApiErrorMessage(apiError, 'Failed to load email account'))
       } else if (data) {
         setAccount(data)
       }
@@ -122,7 +118,13 @@ function EmailAccountDetailPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [accountId])
+
+  useEffect(() => {
+    if (authState.user) {
+      fetchAccount()
+    }
+  }, [authState.user, fetchAccount])
 
   const handleSync = async () => {
     if (!account) return
@@ -132,10 +134,7 @@ function EmailAccountDetailPage() {
       const { error: apiError } = await timelineApi.emailAccounts.sync(accountId)
 
       if (apiError) {
-        const errorMsg =
-          typeof apiError === 'object' && 'message' in apiError
-            ? (apiError as any).message
-            : 'Failed to sync email account'
+        const errorMsg = getApiErrorMessage(apiError, 'Failed to sync email account')
         toast.error('Sync failed', errorMsg)
       } else {
         toast.success('Sync started', `Syncing emails for ${account.email_address}`)
@@ -158,10 +157,7 @@ function EmailAccountDetailPage() {
       const { error: apiError } = await timelineApi.emailAccounts.delete(accountId)
 
       if (apiError) {
-        const errorMsg =
-          typeof apiError === 'object' && 'message' in apiError
-            ? (apiError as any).message
-            : 'Failed to disconnect email account'
+        const errorMsg = getApiErrorMessage(apiError, 'Failed to disconnect email account')
         toast.error('Failed to disconnect', errorMsg)
         throw new Error(errorMsg)
       }
@@ -194,8 +190,15 @@ function EmailAccountDetailPage() {
       <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-none">
         <ErrorIcon className="w-6 h-6 text-red-600 dark:text-red-400 mb-2" />
         <h3 className="font-semibold text-red-900 dark:text-red-200">Error Loading Account</h3>
-        <p className="text-sm text-red-800 dark:text-red-300 mt-1">{error || 'Account not found'}</p>
-        <Button onClick={() => navigate({ to: '/email-accounts' })} variant="secondary" size="md" className="mt-3">
+        <p className="text-sm text-red-800 dark:text-red-300 mt-1">
+          {error || 'Account not found'}
+        </p>
+        <Button
+          onClick={() => navigate({ to: '/email-accounts' })}
+          variant="secondary"
+          size="md"
+          className="mt-3"
+        >
           Back to Email Accounts
         </Button>
       </div>
@@ -208,6 +211,7 @@ function EmailAccountDetailPage() {
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
           <button
+            type="button"
             onClick={() => navigate({ to: '/email-accounts' })}
             className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-none transition-colors"
           >
@@ -245,7 +249,11 @@ function EmailAccountDetailPage() {
         {/* Status Card */}
         <div className="p-4 bg-card/80 backdrop-blur-sm border border-border/50 rounded-none">
           <div className="flex items-center gap-2 text-muted-foreground mb-2">
-            {account.is_active ? <CheckCircle className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+            {account.is_active ? (
+              <CheckCircle className="w-4 h-4" />
+            ) : (
+              <XCircle className="w-4 h-4" />
+            )}
             <span className="text-sm font-medium">Status</span>
           </div>
           <p className="text-lg font-bold text-foreground">
@@ -290,22 +298,28 @@ function EmailAccountDetailPage() {
         <div className="space-y-3">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="text-sm font-medium text-muted-foreground">Email Address</label>
-              <div className="flex items-center gap-2 mt-1">
+              <label htmlFor={emailAddressId} className="text-sm font-medium text-muted-foreground">
+                Email Address
+              </label>
+              <div id={emailAddressId} className="flex items-center gap-2 mt-1">
                 <Mail className="w-4 h-4 text-muted-foreground" />
                 <p className="text-foreground text-sm">{account.email_address}</p>
               </div>
             </div>
             <div>
-              <label className="text-sm font-medium text-muted-foreground">Provider</label>
-              <div className="flex items-center gap-2 mt-1">
+              <label htmlFor={providerId} className="text-sm font-medium text-muted-foreground">
+                Provider
+              </label>
+              <div id={providerId} className="flex items-center gap-2 mt-1">
                 <Server className="w-4 h-4 text-muted-foreground" />
                 <p className="text-foreground text-sm capitalize">{account.provider_type}</p>
               </div>
             </div>
             <div>
-              <label className="text-sm font-medium text-muted-foreground">Sync Status</label>
-              <div className="flex items-center gap-2 mt-1">
+              <label htmlFor={syncStatusId} className="text-sm font-medium text-muted-foreground">
+                Sync Status
+              </label>
+              <div id={syncStatusId} className="flex items-center gap-2 mt-1">
                 <Calendar className="w-4 h-4 text-muted-foreground" />
                 <p className="text-foreground text-sm capitalize">{account.sync_status}</p>
               </div>
@@ -329,7 +343,8 @@ function EmailAccountDetailPage() {
                     className={`p-2 rounded-none ${
                       account.oauth_status === 'active'
                         ? 'bg-green-100 dark:bg-green-900/30'
-                        : account.oauth_status === 'refresh_failed' || account.oauth_status === 'expired'
+                        : account.oauth_status === 'refresh_failed' ||
+                            account.oauth_status === 'expired'
                           ? 'bg-amber-100 dark:bg-amber-900/30'
                           : 'bg-red-100 dark:bg-red-900/30'
                     }`}
@@ -346,7 +361,9 @@ function EmailAccountDetailPage() {
 
             {/* Re-authenticate Button for failed states */}
             {account.oauth_status &&
-              ['refresh_failed', 'consent_denied', 'revoked', 'expired'].includes(account.oauth_status) && (
+              ['refresh_failed', 'consent_denied', 'revoked', 'expired'].includes(
+                account.oauth_status,
+              ) && (
                 <Button
                   onClick={() => navigate({ to: '/email-accounts/create' })}
                   variant="primary"
@@ -366,7 +383,8 @@ function EmailAccountDetailPage() {
         <h2 className="text-base font-semibold text-foreground mb-3">Sync Options</h2>
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            Email events are automatically synced to your timeline. You can trigger a manual sync at any time.
+            Email events are automatically synced to your timeline. You can trigger a manual sync at
+            any time.
           </p>
           <div className="flex items-center gap-2">
             <Button
@@ -396,9 +414,15 @@ function EmailAccountDetailPage() {
         <h2 className="text-base font-semibold text-red-600 dark:text-red-400 mb-3">Danger Zone</h2>
         <div className="space-y-3">
           <p className="text-sm text-muted-foreground">
-            Disconnecting this email account will stop syncing emails. Existing email events will remain in your timeline.
+            Disconnecting this email account will stop syncing emails. Existing email events will
+            remain in your timeline.
           </p>
-          <Button onClick={() => setConfirmingDelete(true)} disabled={deleting} variant="secondary" size="md">
+          <Button
+            onClick={() => setConfirmingDelete(true)}
+            disabled={deleting}
+            variant="secondary"
+            size="md"
+          >
             {deleting ? (
               <>
                 <LoadingIcon />

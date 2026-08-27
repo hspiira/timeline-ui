@@ -1,6 +1,6 @@
+import { CircleX, GitBranch, MousePointerClick, Play, Zap } from 'lucide-react'
 import { nodeRegistry } from '@/lib/workflow-builder/node-registry'
 import type { NodeType } from '@/lib/workflow-builder/types'
-import { Zap, MousePointerClick, GitBranch, Play, CircleX } from 'lucide-react'
 
 const NODE_META: Record<
   string,
@@ -31,6 +31,7 @@ export function NodePalette() {
           const meta = NODE_META[desc.type]
           const Icon = meta?.icon
           return (
+            // biome-ignore lint/a11y/noStaticElementInteractions: a drag source; there is no click or key equivalent to give it.
             <div
               key={desc.type}
               draggable

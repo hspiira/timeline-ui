@@ -1,23 +1,24 @@
-import { useState, useEffect, useCallback } from 'react'
-import { useWorkflowEngineContext } from '@/hooks/useWorkflowEngineContext'
-import { useFormSubmit } from '@/hooks/useFormSubmit'
-import type { components } from '@/lib/timeline-api'
-import {
-  validateWorkflow,
-  workflowGraphToCreateRequest,
-  workflowFromResponse,
-  updateNode,
-  nodeRegistry,
-} from '@/lib/workflow-builder'
-import type { Workflow } from '@/lib/workflow-builder'
-import { Modal } from '@/components/ui/Modal'
+import { useCallback, useEffect, useId, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { SingleSelectCombobox } from '@/components/ui/combobox'
 import { ErrorAlert } from '@/components/ui/ErrorAlert'
-import { WorkflowBuilderCanvas } from '@/components/workflow-builder/WorkflowBuilderCanvas'
-import { NodePaletteRow } from '@/components/workflow-builder/NodePaletteRow'
+import { Input } from '@/components/ui/input'
+import { Modal } from '@/components/ui/Modal'
 import { NodeConfigPanel } from '@/components/workflow-builder/NodeConfigPanel'
+import { NodePaletteRow } from '@/components/workflow-builder/NodePaletteRow'
+import { WorkflowBuilderCanvas } from '@/components/workflow-builder/WorkflowBuilderCanvas'
+import { useFormSubmit } from '@/hooks/useFormSubmit'
+import { useWorkflowEngineContext } from '@/hooks/useWorkflowEngineContext'
+import type { components } from '@/lib/timeline-api'
+import type { Workflow } from '@/lib/workflow-builder'
+import {
+  nodeRegistry,
+  toApiActions,
+  updateNode,
+  validateWorkflow,
+  workflowFromResponse,
+  workflowGraphToCreateRequest,
+} from '@/lib/workflow-builder'
 
 type WorkflowResponse = components['schemas']['WorkflowResponse']
 type WorkflowUpdate = components['schemas']['WorkflowUpdate']
@@ -33,6 +34,10 @@ export function WorkflowEditModalGraph({
   onClose,
   onSave,
 }: WorkflowEditModalGraphProps) {
+  const descriptionOptionalId = useId()
+  const executionOrderId = useId()
+  const whenThisWorkflowId = useId()
+  const workflowNameId = useId()
   const workflowContext = useWorkflowEngineContext()
   const { eventTypes, loading: loadingEventTypes } = workflowContext
   const [workflow, setWorkflow] = useState<Workflow>(() =>
@@ -42,7 +47,7 @@ export function WorkflowEditModalGraph({
       trigger_event_type: initialWorkflow.trigger_event_type ?? '',
       actions: initialWorkflow.actions ?? [],
       trigger_conditions: initialWorkflow.trigger_conditions ?? undefined,
-    })
+    }),
   )
   const [name, setName] = useState(initialWorkflow.name ?? '')
   const [description, setDescription] = useState(initialWorkflow.description ?? '')
@@ -53,14 +58,17 @@ export function WorkflowEditModalGraph({
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
   const { execute, loading, error, setError } = useFormSubmit()
 
-  const triggerNode = workflow.nodes.find((n) => nodeRegistry.getOptional(n.type)?.isTrigger)
+  const triggerNode = useMemo(
+    () => workflow.nodes.find((n) => nodeRegistry.getOptional(n.type)?.isTrigger),
+    [workflow.nodes],
+  )
 
   useEffect(() => {
     if (triggerNode) {
       const eventType = (triggerNode.configuration?.eventType as string) ?? ''
       setTriggerEventType(eventType)
     }
-  }, [triggerNode?.id])
+  }, [triggerNode])
 
   const handleTriggerEventTypeChange = useCallback(
     (value: string) => {
@@ -70,17 +78,16 @@ export function WorkflowEditModalGraph({
         setWorkflow((prev) =>
           updateNode(prev, triggerNode.id, {
             configuration: { ...triggerNode.configuration, eventType: value },
-          })
+          }),
         )
       }
     },
-    [triggerNode]
+    [triggerNode],
   )
 
   const validation = validateWorkflow({ ...workflow, name })
   const graphPayload = workflowGraphToCreateRequest(workflow)
-  const triggerEventTypeFinal =
-    graphPayload?.trigger_event_type?.trim() ?? triggerEventType.trim()
+  const triggerEventTypeFinal = graphPayload?.trigger_event_type?.trim() ?? triggerEventType.trim()
   const canSubmit =
     name.trim() !== '' &&
     triggerEventTypeFinal !== '' &&
@@ -116,14 +123,25 @@ export function WorkflowEditModalGraph({
       return
     }
 
-    const updateData: WorkflowUpdate & { trigger_event_type?: string; actions?: components['schemas']['WorkflowAction'][] } = {
+    const { actions, errors: actionErrors } = toApiActions(payloadFromGraph.actions)
+    if (actionErrors.length > 0) {
+      setFieldErrors((prev) => ({ ...prev, steps: actionErrors[0] }))
+      return
+    }
+
+    const updateData: WorkflowUpdate & {
+      trigger_event_type?: string
+      actions?: NonNullable<components['schemas']['WorkflowCreateRequest']['actions']>
+    } = {
       name: name.trim(),
       description: description.trim() || undefined,
       execution_order: executionOrder,
       is_active: isActive,
       trigger_event_type: triggerEventTypeFinal,
-      actions: payloadFromGraph.actions,
-      ...(workflow.triggerConditions !== undefined && { trigger_conditions: workflow.triggerConditions }),
+      actions,
+      ...(workflow.triggerConditions !== undefined && {
+        trigger_conditions: workflow.triggerConditions,
+      }),
     }
 
     const result = await execute(() => onSave(initialWorkflow.id, updateData as WorkflowUpdate))
@@ -145,10 +163,14 @@ export function WorkflowEditModalGraph({
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <div className="flex flex-wrap items-end gap-4">
           <div className="flex-1 min-w-[180px]">
-            <label className="block text-xs font-medium text-muted-foreground mb-1">
+            <label
+              htmlFor={workflowNameId}
+              className="block text-xs font-medium text-muted-foreground mb-1"
+            >
               Workflow name
             </label>
             <Input
+              id={workflowNameId}
               value={name}
               onChange={(e) => {
                 setName(e.target.value)
@@ -163,10 +185,14 @@ export function WorkflowEditModalGraph({
             )}
           </div>
           <div className="flex-1 min-w-[180px]">
-            <label className="block text-xs font-medium text-muted-foreground mb-1">
+            <label
+              htmlFor={descriptionOptionalId}
+              className="block text-xs font-medium text-muted-foreground mb-1"
+            >
               Description (optional)
             </label>
             <Input
+              id={descriptionOptionalId}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Short description"
@@ -174,14 +200,21 @@ export function WorkflowEditModalGraph({
             />
           </div>
           <div className="min-w-[200px]">
-            <label className="block text-xs font-medium text-muted-foreground mb-1">
+            <label
+              htmlFor={whenThisWorkflowId}
+              className="block text-xs font-medium text-muted-foreground mb-1"
+            >
               When this workflow runs
             </label>
-            <p className="text-[11px] text-muted-foreground/80 mb-1">
+            <p id={whenThisWorkflowId} className="text-[11px] text-muted-foreground/80 mb-1">
               This workflow runs when an event of this type is created.
             </p>
             <SingleSelectCombobox
-              value={triggerNode ? (triggerNode.configuration?.eventType as string) ?? '' : triggerEventType}
+              value={
+                triggerNode
+                  ? ((triggerNode.configuration?.eventType as string) ?? '')
+                  : triggerEventType
+              }
               onValueChange={handleTriggerEventTypeChange}
               options={[
                 { value: '', label: 'When event type…' },
@@ -190,17 +223,25 @@ export function WorkflowEditModalGraph({
               placeholder="When event type…"
               disabled={loading || loadingEventTypes}
               error={fieldErrors.triggerEventType}
-              className={fieldErrors.triggerEventType ? 'border-destructive rounded-none border-input/80' : 'rounded-none border-input/80'}
+              className={
+                fieldErrors.triggerEventType
+                  ? 'border-destructive rounded-none border-input/80'
+                  : 'rounded-none border-input/80'
+              }
             />
             {fieldErrors.triggerEventType && (
               <p className="text-xs text-destructive mt-1">{fieldErrors.triggerEventType}</p>
             )}
           </div>
           <div className="min-w-[120px]">
-            <label className="block text-xs font-medium text-muted-foreground mb-1">
+            <label
+              htmlFor={executionOrderId}
+              className="block text-xs font-medium text-muted-foreground mb-1"
+            >
               Execution order
             </label>
             <Input
+              id={executionOrderId}
               type="number"
               min={0}
               value={executionOrder}
@@ -223,28 +264,29 @@ export function WorkflowEditModalGraph({
               onSelectionChange={setSelectedNodeId}
             />
           </div>
-          {selectedNodeId && (() => {
-            const node = workflow.nodes.find((n) => n.id === selectedNodeId)
-            if (!node) return null
-            return (
-              <div className="w-64 shrink-0 rounded-lg border border-border bg-background p-3">
-                <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-                  Configure step
-                </h4>
-                <NodeConfigPanel
-                  node={node}
-                  workflowContext={workflowContext}
-                  onUpdate={(updates) =>
-                    setWorkflow((prev) =>
-                      updateNode(prev, node.id, {
-                        configuration: { ...node.configuration, ...updates },
-                      })
-                    )
-                  }
-                />
-              </div>
-            )
-          })()}
+          {selectedNodeId &&
+            (() => {
+              const node = workflow.nodes.find((n) => n.id === selectedNodeId)
+              if (!node) return null
+              return (
+                <div className="w-64 shrink-0 rounded-lg border border-border bg-background p-3">
+                  <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                    Configure step
+                  </h4>
+                  <NodeConfigPanel
+                    node={node}
+                    workflowContext={workflowContext}
+                    onUpdate={(updates) =>
+                      setWorkflow((prev) =>
+                        updateNode(prev, node.id, {
+                          configuration: { ...node.configuration, ...updates },
+                        }),
+                      )
+                    }
+                  />
+                </div>
+              )
+            })()}
         </div>
 
         {!validation.valid && validation.errors.length > 0 && (

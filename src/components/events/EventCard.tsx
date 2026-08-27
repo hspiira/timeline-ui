@@ -1,6 +1,6 @@
-import { Calendar, User, Clock, FileText, Eye } from 'lucide-react'
-import type { EventResponse } from '@/lib/types'
+import { Calendar, Clock, Eye, FileText, User } from 'lucide-react'
 import { formatEventDateTime } from '@/lib/format-date'
+import type { EventResponse } from '@/lib/types'
 
 export interface EventCardProps {
   event: EventResponse
@@ -39,6 +39,7 @@ export function EventCard({
               {/* Document Count and View Details - Same Row */}
               {hasDocuments && (
                 <button
+                  type="button"
                   onClick={onViewDocuments}
                   className="inline-flex items-center gap-0.5 sm:gap-1 px-1.5 sm:px-2 py-0.5 bg-blue-100 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 rounded-none hover:bg-blue-200 dark:hover:bg-blue-900/40 transition-colors text-xs shrink-0"
                   title={`${documentCount} document${documentCount !== 1 ? 's' : ''}`}
@@ -49,6 +50,7 @@ export function EventCard({
               )}
               {onViewDetails && (
                 <button
+                  type="button"
                   onClick={onViewDetails}
                   className="px-1.5 sm:px-2 py-0.5 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-950/30 rounded-none transition-colors shrink-0"
                   title="View details"
@@ -69,17 +71,17 @@ export function EventCard({
               </div>
             </div>
 
-            {/* Payload Preview */}  
-            {event.payload && (  
-              <div className="mt-2 p-2 bg-slate-50 dark:bg-slate-900/50 rounded-none border border-slate-200 dark:border-slate-700 overflow-x-auto">  
-                <pre className="text-xs text-foreground/90 whitespace-pre-wrap wrap-break-word max-h-32 overflow-y-auto">  
-                  {(() => {  
-                    const str = JSON.stringify(event.payload, null, 2)  
-                    return str.length > 500 ? str.slice(0, 500) + '\n...' : str  
-                  })()}  
-                </pre>  
-              </div>  
-            )} 
+            {/* Payload Preview */}
+            {event.payload && (
+              <div className="mt-2 p-2 bg-slate-50 dark:bg-slate-900/50 rounded-none border border-slate-200 dark:border-slate-700 overflow-x-auto">
+                <pre className="text-xs text-foreground/90 whitespace-pre-wrap wrap-break-word max-h-32 overflow-y-auto">
+                  {(() => {
+                    const str = JSON.stringify(event.payload, null, 2)
+                    return str.length > 500 ? `${str.slice(0, 500)}\n...` : str
+                  })()}
+                </pre>
+              </div>
+            )}
           </div>
         </div>
       </div>

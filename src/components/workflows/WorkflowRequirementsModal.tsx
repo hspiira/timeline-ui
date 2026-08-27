@@ -5,20 +5,21 @@
  * Matches WorkflowCreateModal layout: wide modal, footer with "Activate after creation" and actions.
  */
 
-import { useState, useCallback } from 'react'
-import { useWorkflowEngineContext } from '@/hooks/useWorkflowEngineContext'
+import { useCallback, useId, useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { ErrorAlert } from '@/components/ui/ErrorAlert'
+import { Modal } from '@/components/ui/Modal'
+import { WorkflowRequirementsForm } from '@/components/workflows/WorkflowRequirementsForm'
 import { useFormSubmit } from '@/hooks/useFormSubmit'
+import { useWorkflowEngineContext } from '@/hooks/useWorkflowEngineContext'
 import type { components } from '@/lib/timeline-api'
+import { toApiActions } from '@/lib/workflow-builder'
 import {
   createEmptyWorkflowRequirements,
   requirementsToCreateRequest,
   validateWorkflowRequirements,
   type WorkflowRequirements,
 } from '@/lib/workflow-builder/workflow-requirements'
-import { Modal } from '@/components/ui/Modal'
-import { Button } from '@/components/ui/button'
-import { WorkflowRequirementsForm } from '@/components/workflows/WorkflowRequirementsForm'
-import { ErrorAlert } from '@/components/ui/ErrorAlert'
 
 type WorkflowCreate = components['schemas']['WorkflowCreateRequest']
 
@@ -33,32 +34,43 @@ export function WorkflowRequirementsModal({
   onSubmit,
   title = 'Create workflow',
 }: WorkflowRequirementsModalProps) {
+  const workflowRequirementsFormId = useId()
   const { eventTypes } = useWorkflowEngineContext()
-  const [requirements, setRequirements] = useState<WorkflowRequirements>(() => createEmptyWorkflowRequirements(''))
+  const [requirements, setRequirements] = useState<WorkflowRequirements>(() =>
+    createEmptyWorkflowRequirements(''),
+  )
   const [isActive, setIsActive] = useState(true)
   const { execute, loading, error, setError } = useFormSubmit()
 
-  const handleSubmit = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault()
-    setError(null)
-    const validation = validateWorkflowRequirements(requirements)
-    if (!validation.valid) return
-    const payload = requirementsToCreateRequest(requirements)
-    if (!payload.trigger_event_type) {
-      setError('Trigger event type is required')
-      return
-    }
-    const createPayload: WorkflowCreate = {
-      name: payload.name,
-      description: payload.description ?? undefined,
-      trigger_event_type: payload.trigger_event_type,
-      actions: payload.actions,
-      execution_order: 0,
-      is_active: isActive,
-    }
-    const success = await execute(() => onSubmit(createPayload))
-    if (success) onClose()
-  }, [requirements, isActive, onSubmit, onClose, execute, setError])
+  const handleSubmit = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault()
+      setError(null)
+      const validation = validateWorkflowRequirements(requirements)
+      if (!validation.valid) return
+      const payload = requirementsToCreateRequest(requirements)
+      if (!payload.trigger_event_type) {
+        setError('Trigger event type is required')
+        return
+      }
+      const { actions, errors: actionErrors } = toApiActions(payload.actions)
+      if (actionErrors.length > 0) {
+        setError(actionErrors[0])
+        return
+      }
+      const createPayload: WorkflowCreate = {
+        name: payload.name,
+        description: payload.description ?? undefined,
+        trigger_event_type: payload.trigger_event_type,
+        actions,
+        execution_order: 0,
+        is_active: isActive,
+      }
+      const success = await execute(() => onSubmit(createPayload))
+      if (success) onClose()
+    },
+    [requirements, isActive, onSubmit, onClose, execute, setError],
+  )
 
   return (
     <Modal
@@ -84,14 +96,19 @@ export function WorkflowRequirementsModal({
             <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>
               Cancel
             </Button>
-            <Button type="submit" form="workflow-requirements-form" variant="primary" disabled={loading}>
+            <Button
+              type="submit"
+              form={workflowRequirementsFormId}
+              variant="primary"
+              disabled={loading}
+            >
               {loading ? 'Creating...' : 'Create workflow'}
             </Button>
           </div>
         </div>
       }
     >
-      <form id="workflow-requirements-form" onSubmit={handleSubmit} className="flex flex-col gap-6">
+      <form id={workflowRequirementsFormId} onSubmit={handleSubmit} className="flex flex-col gap-6">
         <p className="text-sm text-muted-foreground">
           Define steps and tasks in plain language. No diagram required.
         </p>

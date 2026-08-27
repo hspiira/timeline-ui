@@ -1,5 +1,5 @@
-import { ReactNode } from 'react'
 import { AlertCircle } from 'lucide-react'
+import { cloneElement, isValidElement, type ReactNode, useId } from 'react'
 import { Alert, AlertDescription } from './alert'
 import { Input } from './input'
 
@@ -11,35 +11,33 @@ export interface FormFieldProps {
   children: ReactNode
 }
 
-export function FormField({
-  label,
-  error,
-  required = false,
-  hint,
-  children,
-}: FormFieldProps) {
+export function FormField({ label, error, required = false, hint, children }: FormFieldProps) {
+  const fieldId = useId()
+  // Give the control the id the label points at, when it is a single element that
+  // has not set one itself.
+  const control = isValidElement<{ id?: string }>(children)
+    ? cloneElement(children, { id: children.props.id ?? fieldId })
+    : children
+
   return (
     <div className="space-y-1.5">
-      <label className="block text-sm font-medium text-foreground/90">
+      <label htmlFor={fieldId} className="block text-sm font-medium text-foreground/90">
         {label}
         {required && <span className="text-red-500 ml-1">*</span>}
       </label>
-      {children}
+      {control}
       {error && (
         <div className="flex items-center gap-1.5 text-red-600 dark:text-red-300">
           <AlertCircle className="w-4 h-4 flex-shrink-0" />
           <p className="text-xs font-medium">{error}</p>
         </div>
       )}
-      {hint && !error && (
-        <p className="text-xs text-muted-foreground">{hint}</p>
-      )}
+      {hint && !error && <p className="text-xs text-muted-foreground">{hint}</p>}
     </div>
   )
 }
 
-export interface FormInputProps
-  extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size'> {
+export interface FormInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size'> {
   error?: string | null
   size?: 'sm' | 'md' | 'lg'
 }
@@ -57,16 +55,11 @@ export function FormInput({ error, className = '', size, ...props }: FormInputPr
   )
 }
 
-export interface FormTextareaProps
-  extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
+export interface FormTextareaProps extends React.TextareaHTMLAttributes<HTMLTextAreaElement> {
   error?: string | null
 }
 
-export function FormTextarea({
-  error,
-  className = '',
-  ...props
-}: FormTextareaProps) {
+export function FormTextarea({ error, className = '', ...props }: FormTextareaProps) {
   return (
     <textarea
       className={`w-full px-3 py-2 bg-background border rounded-none text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 transition-colors resize-none ${

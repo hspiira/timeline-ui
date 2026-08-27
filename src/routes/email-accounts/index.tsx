@@ -1,21 +1,22 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
-import { requireAuthBeforeLoad } from '@/lib/route-auth'
-import { useState, useEffect } from 'react'
 import type { ColumnDef } from '@tanstack/react-table'
+import { CheckCircle, Clock, Mail, Plus, RefreshCw, Wifi, WifiOff, XCircle } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { DataTable } from '@/components/ui/DataTable'
+import { ErrorIcon, LoadingIcon } from '@/components/ui/icons'
 import { useRequireAuth } from '@/hooks/useRequireAuth'
+import {
+  getSyncStageProgress,
+  getSyncStageText,
+  type SyncProgressEvent,
+  useSyncProgress,
+} from '@/hooks/useSyncProgress'
 import { useToast } from '@/hooks/useToast'
 import { timelineApi } from '@/lib/api-client'
-import { Plus, RefreshCw, Mail, CheckCircle, XCircle, Clock, Wifi, WifiOff } from 'lucide-react'
-import { DataTable } from '@/components/ui/DataTable'
+import { getApiErrorMessage } from '@/lib/api-utils'
+import { requireAuthBeforeLoad } from '@/lib/route-auth'
 import type { EmailAccountResponse } from '@/lib/types'
-import { Button } from '@/components/ui/button'
-import { LoadingIcon, ErrorIcon } from '@/components/ui/icons'
-import {
-  useSyncProgress,
-  getSyncStageText,
-  getSyncStageProgress,
-  type SyncProgressEvent,
-} from '@/hooks/useSyncProgress'
 
 export const Route = createFileRoute('/email-accounts/')({
   beforeLoad: () => {
@@ -37,18 +38,12 @@ function SyncProgressBar({ progress }: { progress: SyncProgressEvent }) {
         <span className={isFailed ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}>
           {stageText}
         </span>
-        {!isFailed && !isCompleted && (
-          <span className="text-muted-foreground">{percentage}%</span>
-        )}
+        {!isFailed && !isCompleted && <span className="text-muted-foreground">{percentage}%</span>}
       </div>
       <div className="h-1.5 bg-muted rounded-none overflow-hidden">
         <div
           className={`h-full transition-all duration-300 ${
-            isFailed
-              ? 'bg-red-500'
-              : isCompleted
-                ? 'bg-green-500'
-                : 'bg-blue-500'
+            isFailed ? 'bg-red-500' : isCompleted ? 'bg-green-500' : 'bg-blue-500'
           }`}
           style={{ width: `${percentage}%` }}
         />
@@ -84,39 +79,41 @@ function EmailAccountsPage() {
       // Refresh accounts list when sync completes
       if (event.stage === 'completed') {
         fetchAccounts()
-        toast.success('Sync completed', `${event.events_created} events created from ${event.messages_fetched} messages`)
+        toast.success(
+          'Sync completed',
+          `${event.events_created} events created from ${event.messages_fetched} messages`,
+        )
       } else if (event.stage === 'failed') {
         toast.error('Sync failed', event.error || 'Unknown error')
       }
     },
   })
 
-  useEffect(() => {
-    if (authState.user) {
-      fetchAccounts()
-    }
-  }, [authState.user])
-
-  const fetchAccounts = async () => {
+  const fetchAccounts = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
       const { data, error: apiError } = await timelineApi.emailAccounts.list()
 
       if (apiError) {
-        const errorObj = apiError as any
-        const errorDetail = errorObj?.detail || errorObj?.message || String(apiError)
-        setError(typeof errorDetail === 'string' ? errorDetail : 'Failed to load email accounts')
+        setError(getApiErrorMessage(apiError, 'Failed to load email accounts'))
       } else if (data) {
         setAccounts(data)
       }
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Unexpected error loading email accounts'
+      const errorMsg =
+        err instanceof Error ? err.message : 'Unexpected error loading email accounts'
       setError(errorMsg)
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    if (authState.user) {
+      fetchAccounts()
+    }
+  }, [authState.user, fetchAccounts])
 
   const handleSync = async (accountId: string, emailAddress: string) => {
     setSyncing(accountId)
@@ -124,10 +121,7 @@ function EmailAccountsPage() {
       const { error: apiError } = await timelineApi.emailAccounts.sync(accountId)
 
       if (apiError) {
-        const errorMsg =
-          typeof apiError === 'object' && 'message' in apiError
-            ? (apiError as any).message
-            : 'Failed to sync email account'
+        const errorMsg = getApiErrorMessage(apiError, 'Failed to sync email account')
         toast.error('Sync failed', errorMsg)
       } else {
         toast.success('Sync started', `Syncing emails for ${emailAddress}`)
@@ -237,9 +231,7 @@ function EmailAccountsPage() {
       id: 'sync_status',
       header: 'Sync Status',
       cell: ({ row }) => (
-        <span className="text-muted-foreground text-sm capitalize">
-          {row.original.sync_status}
-        </span>
+        <span className="text-muted-foreground text-sm capitalize">{row.original.sync_status}</span>
       ),
     },
     {
@@ -255,16 +247,19 @@ function EmailAccountsPage() {
         return (
           <div className="flex items-center justify-end gap-1">
             <button
+              type="button"
               onClick={() => handleSync(account.id, account.email_address)}
               disabled={isSyncing || !account.is_active}
               className="p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded-none transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              title={!account.is_active ? 'Account inactive' : isSyncing ? 'Sync in progress' : 'Sync now'}
+              title={
+                !account.is_active
+                  ? 'Account inactive'
+                  : isSyncing
+                    ? 'Sync in progress'
+                    : 'Sync now'
+              }
             >
-              {isSyncing ? (
-                <LoadingIcon />
-              ) : (
-                <RefreshCw className="w-4 h-4" />
-              )}
+              {isSyncing ? <LoadingIcon /> : <RefreshCw className="w-4 h-4" />}
             </button>
             <Link
               to="/email-accounts/$accountId"
@@ -299,11 +294,17 @@ function EmailAccountsPage() {
           <div className="flex items-center gap-2">
             <h1 className="text-lg font-bold text-foreground">Email Accounts</h1>
             {wsConnected ? (
-              <div className="flex items-center gap-1 text-green-600 dark:text-green-400" title="Real-time updates connected">
+              <div
+                className="flex items-center gap-1 text-green-600 dark:text-green-400"
+                title="Real-time updates connected"
+              >
                 <Wifi className="w-3 h-3" />
               </div>
             ) : (
-              <div className="flex items-center gap-1 text-muted-foreground" title="Real-time updates disconnected">
+              <div
+                className="flex items-center gap-1 text-muted-foreground"
+                title="Real-time updates disconnected"
+              >
                 <WifiOff className="w-3 h-3" />
               </div>
             )}
@@ -331,7 +332,8 @@ function EmailAccountsPage() {
         pageSize={10}
         emptyState={{
           title: 'No email accounts connected',
-          description: 'Connect your first email account to start tracking email events automatically',
+          description:
+            'Connect your first email account to start tracking email events automatically',
           action: (
             <Link to="/email-accounts/create">
               <Button variant="primary" size="md">

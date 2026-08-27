@@ -1,6 +1,6 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { timelineApi } from '@/lib/api-client'
-import type { EventResponse, EventListResponse } from '@/lib/types'
+import type { EventListResponse, EventResponse } from '@/lib/types'
 
 export const EVENTS_PAGE_SIZE = 20
 
@@ -48,6 +48,7 @@ export function useEventsList(options: UseEventsListOptions): UseEventsListResul
   const [refetchTrigger, setRefetchTrigger] = useState(0)
   const loadingMoreRef = useRef(false)
   const hasMoreRef = useRef(true)
+  const totalCountRef = useRef<number | null>(null)
 
   const effectivePage = paged ? pagedPage : page
   const isAppend = !paged && page > 0
@@ -64,12 +65,14 @@ export function useEventsList(options: UseEventsListOptions): UseEventsListResul
     setRefetchTrigger((t) => t + 1)
   }, [])
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: filterEventType is the trigger; a change to it is what resets the paging.
   useEffect(() => {
     if (paged) return
     setPage(0)
     setHasMore(true)
   }, [filterEventType, paged])
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: refetchTrigger is a counter refetch() bumps; the body never reads it because bumping it is the whole point.
   useEffect(() => {
     if (!enabled) return
     if (isAppend) {
@@ -111,7 +114,7 @@ export function useEventsList(options: UseEventsListOptions): UseEventsListResul
           listData.map(async (item: EventListResponse) => {
             const { data } = await timelineApi.events.get(item.id)
             return data
-          })
+          }),
         )
         const validEvents = fullEvents.filter((e): e is EventResponse => e != null)
         if (cancelled) return
@@ -120,7 +123,8 @@ export function useEventsList(options: UseEventsListOptions): UseEventsListResul
           setEvents((prev) => {
             const next = [...prev, ...validEvents]
             if (validEvents.length < EVENTS_PAGE_SIZE) setHasMore(false)
-            else if (totalCount != null && next.length >= totalCount) setHasMore(false)
+            else if (totalCountRef.current != null && next.length >= totalCountRef.current)
+              setHasMore(false)
             return next
           })
         } else {
@@ -132,7 +136,7 @@ export function useEventsList(options: UseEventsListOptions): UseEventsListResul
               ? false
               : total != null
                 ? validEvents.length < total
-                : validEvents.length >= EVENTS_PAGE_SIZE
+                : validEvents.length >= EVENTS_PAGE_SIZE,
           )
         }
 
@@ -141,19 +145,21 @@ export function useEventsList(options: UseEventsListOptions): UseEventsListResul
           Promise.all(
             listData.map(async (item: EventListResponse) => {
               try {
-                const { data: docs, error: docError } = await timelineApi.documents.listByEvent(item.id)
+                const { data: docs, error: docError } = await timelineApi.documents.listByEvent(
+                  item.id,
+                )
                 if (docError) return { eventId: item.id, count: 0 }
                 return { eventId: item.id, count: Array.isArray(docs) ? docs.length : 0 }
               } catch {
                 return { eventId: item.id, count: 0 }
               }
-            })
+            }),
           ),
           Promise.all(
             uniqueSubjectIds.map(async (subjectId) => {
               const { data } = await timelineApi.subjects.get(subjectId)
               return { subjectId, displayName: data?.display_name ?? subjectId }
-            })
+            }),
           ),
         ])
         if (cancelled) return
@@ -195,6 +201,7 @@ export function useEventsList(options: UseEventsListOptions): UseEventsListResul
 
   hasMoreRef.current = hasMore
   loadingMoreRef.current = loadingMore
+  totalCountRef.current = totalCount
 
   return {
     events,

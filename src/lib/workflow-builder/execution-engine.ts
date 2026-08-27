@@ -4,8 +4,8 @@
  * Modular: action execution is injected via executor.
  */
 
-import type { Workflow, WorkflowNode, WorkflowEdge } from './types'
 import { nodeRegistry } from './node-registry'
+import type { Workflow, WorkflowEdge, WorkflowNode } from './types'
 
 export interface ExecutionContext {
   /** Accumulated payload or state passed between steps */
@@ -16,14 +16,11 @@ export interface ExecutionContext {
 
 export type ActionExecutor = (
   node: WorkflowNode,
-  context: ExecutionContext
-) => Promise<Record<string, unknown> | void>
+  context: ExecutionContext,
+) => Promise<Record<string, unknown> | undefined>
 
 /** Condition evaluator: expression + context -> boolean */
-export type ConditionEvaluator = (
-  expression: string,
-  context: ExecutionContext
-) => boolean
+export type ConditionEvaluator = (expression: string, context: ExecutionContext) => boolean
 
 /** Get next node id(s) from this node. For conditions, returns one id based on evaluation. */
 function getNextNodeIds(
@@ -31,7 +28,7 @@ function getNextNodeIds(
   nodeId: string,
   node: WorkflowNode,
   context: ExecutionContext,
-  conditionEvaluator: ConditionEvaluator
+  conditionEvaluator: ConditionEvaluator,
 ): string[] {
   const desc = nodeRegistry.getOptional(node.type)
   if (desc?.isCondition) {
@@ -63,12 +60,10 @@ export async function executeWorkflow(
   workflow: Workflow,
   actionExecutor: ActionExecutor,
   conditionEvaluator: ConditionEvaluator,
-  initialPayload: Record<string, unknown> = {}
+  initialPayload: Record<string, unknown> = {},
 ): Promise<ExecutionResult> {
-  const triggers = workflow.nodes.filter(
-    (n) => nodeRegistry.getOptional(n.type)?.isTrigger
-  )
-  if (triggers.length === 0) {
+  const trigger = workflow.nodes.find((n) => nodeRegistry.getOptional(n.type)?.isTrigger)
+  if (!trigger) {
     return {
       success: false,
       context: { payload: initialPayload, stepIndex: 0 },
@@ -76,14 +71,12 @@ export async function executeWorkflow(
       error: 'No trigger node',
     }
   }
-  const trigger = triggers[0]!
   const context: ExecutionContext = { payload: { ...initialPayload }, stepIndex: 0 }
   const executedNodeIds: string[] = []
   let stepIndex = 0
   const queue: string[] = [trigger.id]
 
-  while (queue.length > 0) {
-    const id = queue.shift()!
+  for (let id = queue.shift(); id !== undefined; id = queue.shift()) {
     const node = workflow.nodes.find((n) => n.id === id)
     if (!node) continue
 
@@ -126,10 +119,7 @@ export async function executeWorkflow(
 }
 
 /** Default condition evaluator: simple expression (e.g. payload.x > 0). For production, use a safe expression evaluator. */
-export function defaultConditionEvaluator(
-  expression: string,
-  context: ExecutionContext
-): boolean {
+export function defaultConditionEvaluator(expression: string, context: ExecutionContext): boolean {
   if (!expression.trim()) return false
   try {
     const fn = new Function('payload', `return Boolean(${expression})`)

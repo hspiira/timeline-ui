@@ -4,8 +4,8 @@
  * Condition nodes: exactly two outgoing edges with labels "true" and "false".
  */
 
-import type { Workflow, WorkflowNode } from './types'
 import { nodeRegistry } from './node-registry'
+import type { Workflow, WorkflowNode } from './types'
 
 export interface ValidationResult {
   valid: boolean
@@ -30,9 +30,10 @@ function reachableFromTrigger(workflow: Workflow): Set<string> {
   if (triggerNodes.length === 0) return new Set()
   const reached = new Set<string>()
   const queue = triggerNodes.map((n) => n.id)
-  queue.forEach((id) => reached.add(id))
-  while (queue.length > 0) {
-    const id = queue.shift()!
+  queue.forEach((id) => {
+    reached.add(id)
+  })
+  for (let id = queue.shift(); id !== undefined; id = queue.shift()) {
     const node = workflow.nodes.find((n) => n.id === id)
     if (!node) continue
     for (const toId of node.outgoingConnections ?? []) {
@@ -87,7 +88,9 @@ export function validateWorkflow(workflow: Workflow): ValidationResult {
   const errors: string[] = []
   const triggers = getTriggerNodes(workflow)
   if (triggers.length === 0) {
-    errors.push('Add a trigger (when an event happens), then add at least one step and connect them.')
+    errors.push(
+      'Add a trigger (when an event happens), then add at least one step and connect them.',
+    )
   }
   if (triggers.length > 1) {
     errors.push('Only one trigger is allowed. Remove the extra trigger or merge the workflow.')
@@ -98,7 +101,9 @@ export function validateWorkflow(workflow: Workflow): ValidationResult {
     const hasTrue = edgesFrom.some((e) => e.label === 'true')
     const hasFalse = edgesFrom.some((e) => e.label === 'false')
     if (!hasTrue || !hasFalse) {
-      errors.push('Connect both outcomes for this condition: one for when it’s true (Yes), one for when it’s false (No).')
+      errors.push(
+        'Connect both outcomes for this condition: one for when it’s true (Yes), one for when it’s false (No).',
+      )
       break
     }
     if (edgesFrom.length > 2) {
@@ -109,11 +114,15 @@ export function validateWorkflow(workflow: Workflow): ValidationResult {
 
   const orphans = orphanNodes(workflow)
   if (orphans.length > 0) {
-    errors.push('Some steps aren’t connected from the start. Connect them from the trigger or remove them.')
+    errors.push(
+      'Some steps aren’t connected from the start. Connect them from the trigger or remove them.',
+    )
   }
 
   if (!allBranchesTerminateOrRejoin(workflow)) {
-    errors.push('Every path should eventually reach an end. Add an End step to any branch that doesn’t.')
+    errors.push(
+      'Every path should eventually reach an end. Add an End step to any branch that doesn’t.',
+    )
   }
 
   return {

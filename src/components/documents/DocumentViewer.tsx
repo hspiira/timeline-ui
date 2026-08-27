@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Download, Printer, File as FileIcon, X } from 'lucide-react'
+import { Download, File as FileIcon, Printer, X } from 'lucide-react'
+import { useEffect, useId, useMemo, useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { ErrorIcon, LoadingIcon } from '@/components/ui/icons'
 import { timelineApi } from '@/lib/api-client'
 import { getApiErrorMessage } from '@/lib/api-utils'
-import { LoadingIcon, ErrorIcon } from '@/components/ui/icons'
-import { Button } from '@/components/ui/button'
 
 export interface DocumentViewerProps {
   documentId: string
@@ -15,9 +15,7 @@ export interface DocumentViewerProps {
 type ViewerState = 'loading' | 'ready' | 'error'
 
 /** API may return { url, expires_in_hours } (signed URL) or inline content. */
-function isDownloadUrlResponse(
-  data: unknown
-): data is { url: string; expires_in_hours?: number } {
+function isDownloadUrlResponse(data: unknown): data is { url: string; expires_in_hours?: number } {
   return (
     typeof data === 'object' &&
     data !== null &&
@@ -27,6 +25,7 @@ function isDownloadUrlResponse(
 }
 
 export function DocumentViewer({ documentId, filename, fileType, onClose }: DocumentViewerProps) {
+  const documentViewerTitleId = useId()
   const [state, setState] = useState<ViewerState>('loading')
   const [error, setError] = useState<string | null>(null)
   const [content, setContent] = useState<Blob | null>(null)
@@ -158,18 +157,25 @@ export function DocumentViewer({ documentId, filename, fileType, onClose }: Docu
   // Note: DocumentViewer doesn't use the standard Modal since it needs custom header layout
   // We keep the direct DOM structure for better control over the flex layout
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={onClose} role="presentation">
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+      <button
+        type="button"
+        className="absolute inset-0 cursor-default"
+        aria-label="Close"
+        onClick={onClose}
+      />
       <div
-        className="bg-background border border-border rounded-none shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col"
-        onClick={(e) => e.stopPropagation()}
+        className="relative bg-background border border-border rounded-none shadow-xl max-w-4xl w-full max-h-[90vh] flex flex-col"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="document-viewer-title"
+        aria-labelledby={documentViewerTitleId}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-border">
           <div className="flex-1 min-w-0">
-            <h2 id="document-viewer-title" className="font-semibold text-foreground truncate">{filename}</h2>
+            <h2 id={documentViewerTitleId} className="font-semibold text-foreground truncate">
+              {filename}
+            </h2>
             <p className="text-xs text-muted-foreground">{fileType}</p>
           </div>
 
@@ -182,7 +188,13 @@ export function DocumentViewer({ documentId, filename, fileType, onClose }: Docu
             <Button variant="ghost" size="sm" onClick={handleDownload} title="Download">
               <Download className="w-4 h-4" />
             </Button>
-            <Button variant="ghost" size="sm" onClick={onClose} title="Close" aria-label="Close modal">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onClose}
+              title="Close"
+              aria-label="Close modal"
+            >
               <X className="w-4 h-4" />
             </Button>
           </div>
@@ -240,7 +252,9 @@ export function DocumentViewer({ documentId, filename, fileType, onClose }: Docu
                       <FileIcon className="w-16 h-16 text-muted-foreground/50" />
                       <div className="text-center">
                         <p className="text-foreground font-medium">PDF Preview</p>
-                        <p className="text-sm text-muted-foreground mt-1">PDF preview is not available in your browser</p>
+                        <p className="text-sm text-muted-foreground mt-1">
+                          PDF preview is not available in your browser
+                        </p>
                         <Button onClick={handleDownload} className="mt-4">
                           Download PDF
                         </Button>
@@ -255,7 +269,9 @@ export function DocumentViewer({ documentId, filename, fileType, onClose }: Docu
                   <FileIcon className="w-16 h-16 text-muted-foreground/50" />
                   <div className="text-center">
                     <p className="text-foreground font-medium">File Preview Unavailable</p>
-                    <p className="text-sm text-muted-foreground mt-1">This file type cannot be previewed</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      This file type cannot be previewed
+                    </p>
                     <Button onClick={handleDownload} className="mt-4">
                       Download File
                     </Button>

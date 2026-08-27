@@ -3,30 +3,30 @@
  * No task descriptions; each task has name + "Require document" checkbox.
  */
 
-import { useCallback, useState, useEffect } from 'react'
-import {
-  type WorkflowRequirements,
-  type WorkflowStepRequirement,
-  type WorkflowTaskRequirement,
-  createStepRequirement,
-  createTaskRequirement,
-  createEmptyWorkflowRequirements,
-  validateWorkflowRequirements,
-} from '@/lib/workflow-builder/workflow-requirements'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { FormField } from '@/components/ui/FormField'
+import { Plus, Trash2 } from 'lucide-react'
+import { useCallback, useEffect, useId, useState } from 'react'
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from '@/components/ui/accordion'
-import { SingleSelectCombobox, optionsFromStrings } from '@/components/ui/combobox'
+import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Plus, Trash2 } from 'lucide-react'
+import { optionsFromStrings, SingleSelectCombobox } from '@/components/ui/combobox'
+import { FormField } from '@/components/ui/FormField'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import { cn } from '@/lib/utils'
+import {
+  createEmptyWorkflowRequirements,
+  createStepRequirement,
+  createTaskRequirement,
+  validateWorkflowRequirements,
+  type WorkflowRequirements,
+  type WorkflowStepRequirement,
+  type WorkflowTaskRequirement,
+} from '@/lib/workflow-builder/workflow-requirements'
 
 export interface WorkflowRequirementsFormProps {
   value: WorkflowRequirements
@@ -43,12 +43,11 @@ export function WorkflowRequirementsForm({
   errors = [],
   compact: _compact = false,
 }: WorkflowRequirementsFormProps) {
+  const oncheckedchangeRequireDocumentId = useId()
   const validation = validateWorkflowRequirements(value)
   const showErrors = errors.length > 0 ? errors : validation.errors
 
-  const [openStepId, setOpenStepId] = useState<string | null>(
-    value.steps[0]?.id ?? null
-  )
+  const [openStepId, setOpenStepId] = useState<string | null>(value.steps[0]?.id ?? null)
 
   useEffect(() => {
     const ids = new Set(value.steps.map((s) => s.id))
@@ -63,7 +62,7 @@ export function WorkflowRequirementsForm({
     (patch: Partial<WorkflowRequirements>) => {
       onChange({ ...value, ...patch })
     },
-    [value, onChange]
+    [value, onChange],
   )
 
   const addStep = useCallback(() => {
@@ -78,7 +77,7 @@ export function WorkflowRequirementsForm({
       next[index] = { ...next[index], ...patch }
       onChange({ ...value, steps: next })
     },
-    [value, onChange]
+    [value, onChange],
   )
 
   const removeStep = useCallback(
@@ -89,7 +88,7 @@ export function WorkflowRequirementsForm({
       if (wasOpen && next.length > 0) setOpenStepId(next[0].id)
       else if (next.length === 0) setOpenStepId(null)
     },
-    [value, onChange, openStepId]
+    [value, onChange, openStepId],
   )
 
   const addTask = useCallback(
@@ -98,21 +97,17 @@ export function WorkflowRequirementsForm({
       const tasks = [...(step.tasks ?? []), createTaskRequirement('')]
       updateStep(stepIndex, { tasks })
     },
-    [value, updateStep]
+    [value, updateStep],
   )
 
   const updateTask = useCallback(
-    (
-      stepIndex: number,
-      taskIndex: number,
-      patch: Partial<WorkflowTaskRequirement>
-    ) => {
+    (stepIndex: number, taskIndex: number, patch: Partial<WorkflowTaskRequirement>) => {
       const step = value.steps[stepIndex]
       const tasks = [...(step.tasks ?? [])]
       tasks[taskIndex] = { ...tasks[taskIndex], ...patch }
       updateStep(stepIndex, { tasks })
     },
-    [value, updateStep]
+    [value, updateStep],
   )
 
   const removeTask = useCallback(
@@ -121,7 +116,7 @@ export function WorkflowRequirementsForm({
       const tasks = (step.tasks ?? []).filter((_, i) => i !== taskIndex)
       updateStep(stepIndex, { tasks: tasks.length > 0 ? tasks : undefined })
     },
-    [updateStep]
+    [value, updateStep],
   )
 
   const setRequireDocument = useCallback(
@@ -130,7 +125,7 @@ export function WorkflowRequirementsForm({
         documentIds: checked ? [''] : undefined,
       })
     },
-    [updateTask]
+    [updateTask],
   )
 
   const accordionValue = openStepId ?? ''
@@ -155,9 +150,7 @@ export function WorkflowRequirementsForm({
             <FormField label="Trigger event type *">
               <SingleSelectCombobox
                 value={value.trigger_event_type ?? ''}
-                onValueChange={(v) =>
-                  update({ trigger_event_type: v || undefined })
-                }
+                onValueChange={(v) => update({ trigger_event_type: v || undefined })}
                 options={optionsFromStrings(eventTypeOptions, {
                   value: '',
                   label: 'Select event type…',
@@ -170,9 +163,7 @@ export function WorkflowRequirementsForm({
             <FormField label="Trigger event type *">
               <Input
                 value={value.trigger_event_type ?? ''}
-                onChange={(e) =>
-                  update({ trigger_event_type: e.target.value || undefined })
-                }
+                onChange={(e) => update({ trigger_event_type: e.target.value || undefined })}
                 placeholder="e.g. order.created"
                 className="text-sm"
               />
@@ -182,9 +173,7 @@ export function WorkflowRequirementsForm({
         <FormField label="Description (optional)">
           <Textarea
             value={value.description ?? ''}
-            onChange={(e) =>
-              update({ description: e.target.value || undefined })
-            }
+            onChange={(e) => update({ description: e.target.value || undefined })}
             placeholder="What this workflow does"
             rows={1}
             className="text-sm resize-none"
@@ -194,8 +183,8 @@ export function WorkflowRequirementsForm({
 
       {showErrors.length > 0 && (
         <ul className="text-sm text-destructive list-disc list-inside">
-          {showErrors.map((err, i) => (
-            <li key={i}>{err}</li>
+          {showErrors.map((err) => (
+            <li key={err}>{err}</li>
           ))}
         </ul>
       )}
@@ -230,9 +219,7 @@ export function WorkflowRequirementsForm({
                   <div className="flex items-center gap-2 w-full text-left">
                     <Input
                       value={step.name}
-                      onChange={(e) =>
-                        updateStep(stepIndex, { name: e.target.value })
-                      }
+                      onChange={(e) => updateStep(stepIndex, { name: e.target.value })}
                       onClick={(e) => e.stopPropagation()}
                       placeholder="Step name"
                       className="flex-1 min-w-0 h-8 text-sm font-medium border-0 shadow-none bg-transparent focus-visible:ring-2"
@@ -282,9 +269,7 @@ export function WorkflowRequirementsForm({
 
                   {/* Tasks: compact list */}
                   <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <span className="text-xs text-muted-foreground">
-                      Tasks
-                    </span>
+                    <span className="text-xs text-muted-foreground">Tasks</span>
                     <Button
                       type="button"
                       variant="ghost"
@@ -297,9 +282,7 @@ export function WorkflowRequirementsForm({
                     </Button>
                   </div>
                   {(step.tasks ?? []).length === 0 ? (
-                    <p className="text-xs text-muted-foreground py-2">
-                      No tasks. Add one below.
-                    </p>
+                    <p className="text-xs text-muted-foreground py-2">No tasks. Add one below.</p>
                   ) : (
                     <ul className="space-y-1.5">
                       {(step.tasks ?? []).map((task, taskIndex) => (
@@ -307,12 +290,10 @@ export function WorkflowRequirementsForm({
                           key={task.id}
                           className={cn(
                             'flex items-center gap-2 py-1.5 pl-2 rounded border border-transparent hover:border-border/50',
-                            'group'
+                            'group',
                           )}
                         >
-                          <span className="text-muted-foreground shrink-0">
-                            –
-                          </span>
+                          <span className="text-muted-foreground shrink-0">–</span>
                           <Input
                             value={task.name}
                             onChange={(e) =>
@@ -323,29 +304,25 @@ export function WorkflowRequirementsForm({
                             placeholder="Task name"
                             className="flex-1 min-w-0 h-8 text-sm border-0 bg-muted/20 focus-visible:ring-2 rounded"
                           />
-                          <label className="flex items-center gap-1.5 shrink-0 text-xs text-muted-foreground cursor-pointer whitespace-nowrap">
+                          <label
+                            htmlFor={oncheckedchangeRequireDocumentId}
+                            className="flex items-center gap-1.5 shrink-0 text-xs text-muted-foreground cursor-pointer whitespace-nowrap"
+                          >
                             <Checkbox
-                              checked={
-                                (task.documentIds?.length ?? 0) > 0
-                              }
+                              checked={(task.documentIds?.length ?? 0) > 0}
                               onCheckedChange={(checked) =>
-                                setRequireDocument(
-                                  stepIndex,
-                                  taskIndex,
-                                  !!checked
-                                )
+                                setRequireDocument(stepIndex, taskIndex, !!checked)
                               }
                             />
                             Require document
                           </label>
                           <Button
+                            id={oncheckedchangeRequireDocumentId}
                             type="button"
                             variant="ghost"
                             size="sm"
                             className="opacity-0 group-hover:opacity-100 h-7 w-7 p-0 text-muted-foreground hover:text-destructive shrink-0"
-                            onClick={() =>
-                              removeTask(stepIndex, taskIndex)
-                            }
+                            onClick={() => removeTask(stepIndex, taskIndex)}
                             title="Remove task"
                           >
                             <Trash2 className="w-3 h-3" />

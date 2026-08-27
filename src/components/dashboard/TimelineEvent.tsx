@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useState } from 'react'
 import { FileText } from 'lucide-react'
+import { useCallback, useEffect, useState } from 'react'
+import { Button } from '@/components/ui/button'
+import { LoadingIcon } from '@/components/ui/icons'
 import { timelineApi } from '@/lib/api-client'
 import { formatEventTime } from '@/lib/format-date'
 import type { EventResponse } from '@/lib/types'
-import { LoadingIcon } from '@/components/ui/icons'
-import { Button } from '@/components/ui/button'
 
 interface TimelineEventProps {
   event: EventResponse
@@ -21,14 +21,14 @@ export function TimelineEvent({
   isHovered,
   onToggle,
   onHover,
-  onViewDocuments
+  onViewDocuments,
 }: TimelineEventProps) {
   const [documentCount, setDocumentCount] = useState<number | null>(null)
   const [loadingDocuments, setLoadingDocuments] = useState(false)
   const showPayload = isExpanded || isHovered
 
   const checkDocuments = useCallback(async () => {
-    if (documentCount !== null) return // Already fetched 
+    if (documentCount !== null) return // Already fetched
     setLoadingDocuments(true)
     try {
       const { data, error } = await timelineApi.documents.listByEvent(event.id)
@@ -58,23 +58,33 @@ export function TimelineEvent({
       </div>
 
       <div className="flex-1">
-        <div
-          onClick={onToggle}
-          onMouseEnter={() => {
-            onHover(event.id)
-            checkDocuments()
-          }}
-          onMouseLeave={() => onHover(null)}
-          className="flex justify-between hover:bg-blue-50/50 dark:hover:bg-blue-950/20 px-2 py-1.5 rounded-none cursor-pointer transition-colors"
-        >
+        <div className="flex justify-between hover:bg-blue-50/50 dark:hover:bg-blue-950/20 px-2 py-1.5 rounded-none transition-colors">
           <div className="flex gap-2 items-center">
-            <span className="text-xs text-muted-foreground font-mono">
-              {formatEventTime(event.event_time)}
-            </span>
-            <span className="font-mono text-xs bg-linear-to-r from-slate-600 to-slate-700 dark:from-slate-700 dark:to-slate-800 text-slate-100 px-2 py-0.5 rounded-none">
-              {event.subject_id.slice(0, 8)}
-            </span>
-            <span className="text-sm font-semibold text-blue-700 dark:text-blue-300">{event.event_type}</span>
+            <button
+              type="button"
+              onClick={onToggle}
+              onMouseEnter={() => {
+                onHover(event.id)
+                checkDocuments()
+              }}
+              onMouseLeave={() => onHover(null)}
+              onFocus={() => {
+                onHover(event.id)
+                checkDocuments()
+              }}
+              onBlur={() => onHover(null)}
+              className="flex gap-2 items-center text-left cursor-pointer"
+            >
+              <span className="text-xs text-muted-foreground font-mono">
+                {formatEventTime(event.event_time)}
+              </span>
+              <span className="font-mono text-xs bg-linear-to-r from-slate-600 to-slate-700 dark:from-slate-700 dark:to-slate-800 text-slate-100 px-2 py-0.5 rounded-none">
+                {event.subject_id.slice(0, 8)}
+              </span>
+              <span className="text-sm font-semibold text-blue-700 dark:text-blue-300">
+                {event.event_type}
+              </span>
+            </button>
 
             {/* Document Indicator */}
             {loadingDocuments && (
